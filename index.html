@@ -585,12 +585,17 @@ footer a { color: var(--haze); }
 .cp-ring b { position: relative; font-family: var(--display); font-weight: 400; font-size: 34px; line-height: 1; }
 .cp-ring small { font-size: 17px; margin-left: 2px; color: var(--haze); }
 .cp-pill { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--sakura); background: color-mix(in srgb, var(--sakura) 14%, transparent); }
-.duo-sc { display: flex; flex-direction: column; gap: 4px; margin-top: -2px; }
-.duo-sc span { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--haze); padding: 3px 8px; border-radius: 8px; background: var(--night-2); border: 1px solid var(--line); }
-.duo-sc span.me { border-color: color-mix(in srgb, var(--sakura) 45%, transparent); }
-.duo-sc b { flex: none; color: var(--paper); font-variant-numeric: tabular-nums; }
-.duo-sc em { font-style: normal; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.duo-sc em i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.stamps { position: absolute; left: 9px; bottom: 15px; display: flex; align-items: flex-end; pointer-events: none; }
+.stamp { display: grid; place-items: center; min-width: 42px; height: 38px; padding: 1px 9px 0; border-radius: 11px; font-family: var(--display); font-size: 19px; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 10px 20px -8px rgba(0,0,0,.85), 0 0 0 2.5px var(--night); }
+.stamp.me { position: relative; z-index: 1; background: var(--sakura); color: var(--sakura-ink); transform: rotate(-6deg); }
+.stamp.fr { background: var(--paper); color: var(--night); transform: rotate(5deg); }
+.stamp.me + .stamp.fr { margin-left: -5px; }
+.stamp.sm { min-width: 32px; height: 28px; padding: 1px 7px 0; border-radius: 8px; font-size: 14px; box-shadow: none; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 0; font-size: 14px; color: var(--haze); }
+.legend span { display: inline-flex; align-items: center; gap: 9px; }
+.legend i { width: 13px; height: 13px; border-radius: 3px; }
+.legend i.me { background: var(--sakura); transform: rotate(-6deg); }
+.legend i.fr { background: var(--paper); transform: rotate(5deg); }
 
 /* ---------- bilan ---------- */
 .bl-cta { justify-self: start; display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 12px; border-radius: 13px; text-decoration: none; color: var(--paper); font-weight: 800; font-size: 14px; background: linear-gradient(120deg, color-mix(in srgb, var(--sakura) 34%, var(--night-3)), color-mix(in srgb, var(--tint-hi) 30%, var(--night-3))); border: 1px solid color-mix(in srgb, var(--sakura) 40%, transparent); }
@@ -1585,7 +1590,7 @@ footer a { color: var(--haze); }
     }
     box.hidden = false;
     box.innerHTML = `<h3>Chez tes amis</h3>` + (byUser.size
-      ? `<ul class="fr-list">${[...byUser.values()].map((u) => `<li class="fr-item">${avatarImg(u.user)}<a href="#ami-${encodeURIComponent(u.user.name)}">${esc(u.user.name)}</a><span class="fr-st">${stChip(deriveStatus(u.sts))}${u.score ? `<span class="lc-score">${fmtScore(halfOf100(u.score))}<small>/10</small></span>` : ""}</span></li>`).join("")}</ul>`
+      ? `<ul class="fr-list">${[...byUser.values()].map((u) => `<li class="fr-item">${avatarImg(u.user)}<a href="#ami-${encodeURIComponent(u.user.name)}">${esc(u.user.name)}</a><span class="fr-st">${stChip(deriveStatus(u.sts))}${u.score ? `<span class="stamp fr sm" title="Note de ${esc(u.user.name)} : ${fmtScore(halfOf100(u.score))}/10">${fmtScore(halfOf100(u.score))}</span>` : ""}</span></li>`).join("")}</ul>`
       : `<p class="muted">Aucun de tes amis n'a cet anime dans sa liste pour l'instant.</p>`);
   }
 
@@ -1684,6 +1689,10 @@ footer a { color: var(--haze); }
     return `<section class="group" aria-labelledby="h-${id}"><div class="row-head"><div><h2 id="h-${id}"><span class="fav-ico">${ICON_HEART_FULL}</span>${title}</h2><p>${sub}</p></div></div>
       <div class="strip" id="row-${id}">${list.map((e) => listCard(e, Object.assign({ fav: true }, cardOpts || {}))).join("")}</div></section>`;
   }
+  function stampsHTML(me, fr, name) {
+    if (!me && !fr) return "";
+    return `<span class="stamps">${me ? `<span class="stamp me" title="Ta note : ${fmtScore(me)}/10"><span class="sr">Ta note : </span>${fmtScore(me)}</span>` : ""}${fr ? `<span class="stamp fr" title="Note de ${esc(name)} : ${fmtScore(fr)}/10"><span class="sr">Note de ${esc(name)} : </span>${fmtScore(fr)}</span>` : ""}</span>`;
+  }
   function listCard(e, opts = {}) {
     const t = titles(e.en, e.ro);
     const total = e.total || 0, p = e.progress || 0;
@@ -1691,19 +1700,14 @@ footer a { color: var(--haze); }
     const fresh = e.status === "completed" && total > p;
     const canInc = !opts.readonly && e.status === "watching" && (!total || p < total);
     const showTag = opts.readonly ? false : state.filter !== "all";
-    const mine = opts.readonly ? entryOf(e.id) : null;
+    const mine = opts.friend ? entryOf(e.id) : null;
+    const stamps = opts.friend ? stampsHTML(mine && mine.score, e.score, opts.friend) : stampsHTML(e.score, 0);
     return `<article class="pc${state.bump === e.id ? " bump" : ""}" style="${tintVars(e.color)};--sc:var(--s-${e.status})">
       <button class="pc-hit" data-act="open" data-id="${e.id}">
-        <span class="pc-img">${img(e.cover, "")}${(opts.fav !== undefined ? opts.fav : !opts.readonly && isFav(e)) ? `<span class="fav-badge" title="Préféré">${ICON_HEART_FULL}<span class="sr">Préféré</span></span>` : ""}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
+        <span class="pc-img">${img(e.cover, "")}${stamps}${(opts.fav !== undefined ? opts.fav : !opts.readonly && isFav(e)) ? `<span class="fav-badge" title="Préféré">${ICON_HEART_FULL}<span class="sr">Préféré</span></span>` : ""}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
         <span class="pc-t">${esc(t.main)}</span>
       </button>
-      ${opts.friend
-        ? `<div class="lc-meta"><span>${esc(progressLabel(e))}</span></div>
-      <div class="duo-sc vs"><span title="La note de ${esc(opts.friend)}"><em>${esc(opts.friend)}</em> <b>${e.score ? fmtScore(e.score) : "–"}</b></span>${mine
-        ? `<span class="me" title="Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ", pas encore noté"}"><em><i style="background:var(--s-${mine.status})"></i>Toi</em> <b>${mine.score ? fmtScore(mine.score) : "–"}</b></span>`
-        : ""}</div>`
-        : `<div class="lc-meta"><span>${esc(progressLabel(e))}</span><span class="lc-score">${e.score ? `${fmtScore(e.score)}<small>/10</small>` : '<small>non noté</small>'}</span></div>
-      ${mine ? `<div class="mine">Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ""}</div>` : ""}`}
+      <div class="lc-meta"><span>${esc(progressLabel(e))}</span></div>
       <div class="pc-over">
         ${opts.behind ? `<span class="lc-new">${plural(opts.behind, "épisode à voir", "épisodes à voir")}</span>` : fresh && !opts.readonly ? `<span class="lc-new">Nouveaux épisodes</span>` : showTag ? `<span class="pc-tag" style="background:var(--sc);color:var(--night)">${STATUS[e.status]}</span>` : ""}
         ${canInc ? `<button class="lc-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}
@@ -1990,7 +1994,7 @@ footer a { color: var(--haze); }
           <div class="prof-acts">${auth.viewer && !isMe && u.id ? followBtn(u) : ""}${u.siteUrl ? `<a class="btn btn-sm btn-ghost" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Profil AniList</a>` : ""}</div></div>
         <p class="lh-sum">${sum}</p>
         ${all.length ? distHTML(counts) : ""}
-        ${all.length ? `<div class="bar-tools">${filtersHTML(all, counts, state.ffilter, "ffilter")}</div>` : ""}
+        ${all.length ? `<div class="bar-tools">${filtersHTML(all, counts, state.ffilter, "ffilter")}${!isMe ? `<p class="legend" aria-hidden="true"><span><i class="me"></i>Ta note</span><span><i class="fr"></i>Celle de ${esc(u.name)}</span></p>` : ""}</div>` : ""}
       </header>
       <div class="page">
         ${!isMe && all.length && state.list.size ? compatHTML(f, u.name) : ""}
@@ -2811,8 +2815,7 @@ footer a { color: var(--haze); }
   function duoCard(m, f, name) {
     const t = titles(m.en, m.ro).main;
     return `<article class="pc duo" style="${tintVars(m.color)}">
-      <button class="pc-hit" data-act="open" data-id="${m.id}"><span class="pc-img">${img(m.cover, "")}</span><span class="pc-t">${esc(t)}</span></button>
-      <div class="duo-sc"><span class="me" title="Ta note"><em>Toi</em> <b>${fmtScore(m.score)}</b></span><span title="La note de ${esc(name)}"><em>${esc(name)}</em> <b>${fmtScore(f.score)}</b></span></div>
+      <button class="pc-hit" data-act="open" data-id="${m.id}"><span class="pc-img">${img(m.cover, "")}${stampsHTML(m.score, f.score, name)}</span><span class="pc-t">${esc(t)}</span></button>
     </article>`;
   }
   function compatHTML(f, name) {
@@ -2834,7 +2837,7 @@ footer a { color: var(--haze); }
         <p>Calculée sur ${plural(c.pairs.length, "anime noté", "animes notés")} par vous deux.${g ? ` Votre plus gros désaccord : <b>${esc(titles(g[0].en, g[0].ro).main)}</b> (toi ${fmtScore(g[0].score)}/10, ${nm} ${fmtScore(g[1].score)}/10).` : ""}</p>${both}</div>
       </section>`;
     }
-    const duo = c.pairs.length ? `<section class="group" aria-labelledby="h-duo"><div class="row-head"><div><h2 id="h-duo">Notés par vous deux</h2><p>Vos notes côte à côte, de vos préférés communs aux moins aimés.</p></div></div>
+    const duo = c.pairs.length ? `<section class="group" aria-labelledby="h-duo"><div class="row-head"><div><h2 id="h-duo">Notés par vous deux</h2><p>Vos deux notes sur chaque affiche, de vos préférés communs aux moins aimés.</p></div></div>
       <div class="strip" id="row-duo">${c.pairs.slice(0, 24).map(([m, fe]) => duoCard(m, fe, name)).join("")}</div></section>` : "";
     const loved = c.loved.length ? `<section class="group" aria-labelledby="h-loved"><div class="row-head"><div><h2 id="h-loved">Ses coups de cœur que tu n'as pas vus</h2><p>Ce que ${nm} a noté 8 ou plus et qui n'est pas encore dans ta liste.</p></div></div>
       <div class="strip" id="row-loved">${c.loved.slice(0, 24).map((e) => listCard(e, { readonly: true, add: true, friend: name })).join("")}</div></section>` : "";
