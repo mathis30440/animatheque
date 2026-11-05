@@ -589,6 +589,9 @@ footer a { color: var(--haze); }
 .duo-sc span { flex: 1; min-width: 0; display: flex; justify-content: space-between; gap: 4px; font-size: 12.5px; color: var(--haze); padding: 3px 8px; border-radius: 8px; background: var(--night-2); border: 1px solid var(--line); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .duo-sc span.me { border-color: color-mix(in srgb, var(--sakura) 45%, transparent); }
 .duo-sc b { color: var(--paper); font-variant-numeric: tabular-nums; }
+.duo-sc em { font-style: normal; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 5px; }
+.duo-sc em i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.duo-sc.vs { margin-top: -2px; }
 
 /* ---------- bilan ---------- */
 .bl-cta { justify-self: start; display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 12px; border-radius: 13px; text-decoration: none; color: var(--paper); font-weight: 800; font-size: 14px; background: linear-gradient(120deg, color-mix(in srgb, var(--sakura) 34%, var(--night-3)), color-mix(in srgb, var(--tint-hi) 30%, var(--night-3))); border: 1px solid color-mix(in srgb, var(--sakura) 40%, transparent); }
@@ -1695,8 +1698,13 @@ footer a { color: var(--haze); }
         <span class="pc-img">${img(e.cover, "")}${(opts.fav !== undefined ? opts.fav : !opts.readonly && isFav(e)) ? `<span class="fav-badge" title="Préféré">${ICON_HEART_FULL}<span class="sr">Préféré</span></span>` : ""}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
         <span class="pc-t">${esc(t.main)}</span>
       </button>
-      <div class="lc-meta"><span>${esc(progressLabel(e))}</span><span class="lc-score">${e.score ? `${fmtScore(e.score)}<small>/10</small>` : '<small>non noté</small>'}</span></div>
-      ${mine ? `<div class="mine">Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ""}</div>` : ""}
+      ${opts.friend
+        ? `<div class="lc-meta"><span>${esc(progressLabel(e))}</span></div>
+      <div class="duo-sc vs"><span title="La note de ${esc(opts.friend)}"><em>${esc(opts.friend)}</em> <b>${e.score ? fmtScore(e.score) : "–"}</b></span>${mine
+        ? `<span class="me" title="Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ", pas encore noté"}"><em><i style="background:var(--s-${mine.status})"></i>Toi</em> <b>${mine.score ? fmtScore(mine.score) : "–"}</b></span>`
+        : ""}</div>`
+        : `<div class="lc-meta"><span>${esc(progressLabel(e))}</span><span class="lc-score">${e.score ? `${fmtScore(e.score)}<small>/10</small>` : '<small>non noté</small>'}</span></div>
+      ${mine ? `<div class="mine">Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ""}</div>` : ""}`}
       <div class="pc-over">
         ${opts.behind ? `<span class="lc-new">${plural(opts.behind, "épisode à voir", "épisodes à voir")}</span>` : fresh && !opts.readonly ? `<span class="lc-new">Nouveaux épisodes</span>` : showTag ? `<span class="pc-tag" style="background:var(--sc);color:var(--night)">${STATUS[e.status]}</span>` : ""}
         ${canInc ? `<button class="lc-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}
@@ -1987,9 +1995,9 @@ footer a { color: var(--haze); }
       </header>
       <div class="page">
         ${!isMe && all.length && state.list.size ? compatHTML(f, u.name) : ""}
-        ${!isMe ? favSectionHTML(favEntries(all, f.favs || []), "Ses préférés", `Les coups de cœur de ${esc(u.name)}.`, "hisfavs", { readonly: true, add: true }) : ""}
+        ${!isMe ? favSectionHTML(favEntries(all, f.favs || []), "Ses préférés", `Les coups de cœur de ${esc(u.name)}.`, "hisfavs", { readonly: true, add: true, friend: u.name }) : ""}
         ${acts && acts.length ? `<section class="group" aria-labelledby="h-act"><h2 id="h-act">Ses dernières activités</h2><ul class="feed">${acts.slice(0, 6).map(actHTML).join("")}</ul></section>` : ""}
-        ${all.length ? groupsHTML(all, state.ffilter, (e) => listCard(e, { readonly: true })) : `<p class="muted">Sa liste est vide pour l'instant.</p>`}
+        ${all.length ? groupsHTML(all, state.ffilter, (e) => listCard(e, { readonly: true, friend: isMe ? null : u.name })) : `<p class="muted">Sa liste est vide pour l'instant.</p>`}
       </div>
     </div>`;
   }
@@ -2830,7 +2838,7 @@ footer a { color: var(--haze); }
     const duo = c.pairs.length ? `<section class="group" aria-labelledby="h-duo"><div class="row-head"><div><h2 id="h-duo">Notés par vous deux</h2><p>Vos notes côte à côte, de vos préférés communs aux moins aimés.</p></div></div>
       <div class="strip" id="row-duo">${c.pairs.slice(0, 24).map(([m, fe]) => duoCard(m, fe, name)).join("")}</div></section>` : "";
     const loved = c.loved.length ? `<section class="group" aria-labelledby="h-loved"><div class="row-head"><div><h2 id="h-loved">Ses coups de cœur que tu n'as pas vus</h2><p>Ce que ${nm} a noté 8 ou plus et qui n'est pas encore dans ta liste.</p></div></div>
-      <div class="strip" id="row-loved">${c.loved.slice(0, 24).map((e) => listCard(e, { readonly: true, add: true })).join("")}</div></section>` : "";
+      <div class="strip" id="row-loved">${c.loved.slice(0, 24).map((e) => listCard(e, { readonly: true, add: true, friend: name })).join("")}</div></section>` : "";
     return head + duo + loved;
   }
 
