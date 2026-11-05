@@ -585,13 +585,12 @@ footer a { color: var(--haze); }
 .cp-ring b { position: relative; font-family: var(--display); font-weight: 400; font-size: 34px; line-height: 1; }
 .cp-ring small { font-size: 17px; margin-left: 2px; color: var(--haze); }
 .cp-pill { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--sakura); background: color-mix(in srgb, var(--sakura) 14%, transparent); }
-.duo-sc { display: flex; gap: 6px; margin-top: -4px; }
-.duo-sc span { flex: 1; min-width: 0; display: flex; justify-content: space-between; gap: 4px; font-size: 12.5px; color: var(--haze); padding: 3px 8px; border-radius: 8px; background: var(--night-2); border: 1px solid var(--line); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.duo-sc { display: flex; flex-direction: column; gap: 4px; margin-top: -2px; }
+.duo-sc span { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--haze); padding: 3px 8px; border-radius: 8px; background: var(--night-2); border: 1px solid var(--line); }
 .duo-sc span.me { border-color: color-mix(in srgb, var(--sakura) 45%, transparent); }
-.duo-sc b { color: var(--paper); font-variant-numeric: tabular-nums; }
-.duo-sc em { font-style: normal; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 5px; }
-.duo-sc em i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
-.duo-sc.vs { margin-top: -2px; }
+.duo-sc b { flex: none; color: var(--paper); font-variant-numeric: tabular-nums; }
+.duo-sc em { font-style: normal; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.duo-sc em i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
 
 /* ---------- bilan ---------- */
 .bl-cta { justify-self: start; display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 12px; border-radius: 13px; text-decoration: none; color: var(--paper); font-weight: 800; font-size: 14px; background: linear-gradient(120deg, color-mix(in srgb, var(--sakura) 34%, var(--night-3)), color-mix(in srgb, var(--tint-hi) 30%, var(--night-3))); border: 1px solid color-mix(in srgb, var(--sakura) 40%, transparent); }
@@ -2813,7 +2812,7 @@ footer a { color: var(--haze); }
     const t = titles(m.en, m.ro).main;
     return `<article class="pc duo" style="${tintVars(m.color)}">
       <button class="pc-hit" data-act="open" data-id="${m.id}"><span class="pc-img">${img(m.cover, "")}</span><span class="pc-t">${esc(t)}</span></button>
-      <div class="duo-sc"><span class="me" title="Ta note">Toi <b>${fmtScore(m.score)}</b></span><span title="La note de ${esc(name)}">${esc(name)} <b>${fmtScore(f.score)}</b></span></div>
+      <div class="duo-sc"><span class="me" title="Ta note"><em>Toi</em> <b>${fmtScore(m.score)}</b></span><span title="La note de ${esc(name)}"><em>${esc(name)}</em> <b>${fmtScore(f.score)}</b></span></div>
     </article>`;
   }
   function compatHTML(f, name) {
