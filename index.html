@@ -234,6 +234,19 @@ main { flex: 1; }
 .st[aria-pressed="true"] { background: var(--sc); border-color: var(--sc); color: var(--night); }
 .st[aria-pressed="true"]::before { background: var(--night); }
 .scores { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; }
+.score-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.half { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--night-3); color: var(--haze); font-size: 13px; font-weight: 800; }
+.half:hover:not([disabled]) { border-color: var(--tint-hi); color: var(--paper); }
+.half[aria-pressed="true"] { background: var(--tint-hi); border-color: var(--tint-hi); color: var(--tint-ink); }
+.half[disabled] { opacity: .4; cursor: not-allowed; }
+.fav-badge { position: absolute; top: 8px; right: 8px; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(20, 17, 48, .72); color: #FF5C8A; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.fav-badge svg { width: 16px; height: 16px; }
+.fav-btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; height: 36px; padding: 0 14px 0 11px; border-radius: 999px; border: 1px solid var(--line); background: rgba(20, 17, 48, .6); color: var(--paper); font-weight: 800; font-size: 14px; }
+.fav-btn svg { width: 18px; height: 18px; color: #FF5C8A; }
+.fav-btn:hover { border-color: #FF5C8A; }
+.fav-btn[aria-pressed="true"] { background: color-mix(in srgb, #FF5C8A 22%, var(--night-3)); border-color: color-mix(in srgb, #FF5C8A 60%, transparent); }
+.fav-ico { display: inline-grid; place-items: center; width: 1em; height: 1em; margin-right: 10px; color: #FF5C8A; vertical-align: -0.08em; }
+.fav-ico svg { width: 100%; height: 100%; }
 .scores button { height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--night-3); font-weight: 800; font-variant-numeric: tabular-nums; padding: 0; }
 .scores button:hover { border-color: var(--tint-hi); }
 .scores button.on { background: color-mix(in srgb, var(--tint-hi) 26%, var(--night-3)); border-color: color-mix(in srgb, var(--tint-hi) 50%, transparent); }
@@ -799,7 +812,9 @@ footer a { color: var(--haze); }
   const Q_ROOT = `query($id:Int){Media(id:$id,type:ANIME){${PART} bannerImage duration averageScore genres description(asHtml:false) ${STUDIOS} siteUrl}}`;
   const Q_PARTS = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){${PART}}}}`;
   const Q_VIEWER = `query{Viewer{id name avatar{large medium} bannerImage siteUrl unreadNotificationCount options{airingNotifications}}}`;
-  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} siteUrl} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
+  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
+  const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
+  const K_FAVS = "animatheque.preferes.v1";
   const M_SAVE = `mutation($mediaId:Int,$status:MediaListStatus,$progress:Int,$scoreRaw:Int,$notes:String,$completedAt:FuzzyDateInput){SaveMediaListEntry(mediaId:$mediaId,status:$status,progress:$progress,scoreRaw:$scoreRaw,notes:$notes,completedAt:$completedAt){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}}`;
   const M_DELETE = `mutation($id:Int){DeleteMediaListEntry(id:$id){deleted}}`;
   const Q_USERS = `query($q:String){Page(perPage:10){users(search:$q){id name avatar{large medium} isFollowing isFollower}}}`;
@@ -855,6 +870,9 @@ footer a { color: var(--haze); }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const nf = new Intl.NumberFormat("fr-FR");
   const nf1 = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  /* Scores go by half points: 7 or 7,5 (AniList keeps them on 100, so 75). */
+  const fmtScore = (v) => (Number.isInteger(v) ? String(v) : nf1.format(v));
+  const halfOf100 = (v) => Math.max(1, Math.min(10, Math.round((v || 0) / 5) / 2));
   const keyOf = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const plural = (n, one, many) => `${nf.format(n)} ${n > 1 ? many : one}`;
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (_) { return d; } };
@@ -1189,7 +1207,7 @@ footer a { color: var(--haze); }
     e.status = deriveStatus(states.map((s) => s.status));
     e.progress = progress;
     const scored = [...incStates, ...Object.values(al)].find((s) => s.score > 0);
-    e.score = scored ? Math.max(1, Math.min(10, Math.round(scored.score / 10))) : 0;
+    e.score = scored ? halfOf100(scored.score) : 0;
     e.comment = ([...incStates, ...Object.values(al)].find((s) => s.notes) || {}).notes || "";
     const ups = Object.values(al).map((s) => s.updatedAt || 0), adds = Object.values(al).map((s) => s.createdAt || 0).filter(Boolean);
     e.updatedAt = Math.max(0, ...ups) * 1000;
@@ -1251,7 +1269,7 @@ footer a { color: var(--haze); }
         const full = size && epCur >= size && i < inc.length - 1 && st === "watching";
         w = { status: full ? "COMPLETED" : AL_STATUS[st === "plan" ? "watching" : st], progress: epCur };
       } else if (has) w = { status: "PLANNING", progress: 0 };
-      if (w) { w.scoreRaw = (e.score || 0) * 10; out.set(p.id, w); }
+      if (w) { w.scoreRaw = Math.round((e.score || 0) * 10); out.set(p.id, w); }
     });
     const first = out.keys().next().value;
     if (first !== undefined) out.get(first).notes = e.comment || "";
@@ -1414,6 +1432,7 @@ footer a { color: var(--haze); }
       const d = await gql(Q_COLLECTION, { userId: auth.viewer.id });
       const next = new Map();
       for (const e of buildGroups(d.MediaListCollection, true)) next.set(e.id, e);
+      state.favs = favIds(d.MediaListCollection.user);
       for (const [id, e] of state.list) if (syncs.has(id)) next.set(id, e);
       state.list = next;
       state.alLoaded = true;
@@ -1531,7 +1550,7 @@ footer a { color: var(--haze); }
     try {
       const d = await gql(Q_COLLECTION, { userName: name }, { bg: !!quiet });
       const col = d.MediaListCollection;
-      data = { name: col.user?.name || name, user: col.user, groups: buildGroups(col, false) };
+      data = { name: col.user?.name || name, user: col.user, groups: buildGroups(col, false), favs: favIds(col.user) };
       FRIENDS.set(key, { at: Date.now(), data });
     } catch (err) { data = quiet && c ? c.data : { name, err }; }
     friendBusy.delete(key);
@@ -1564,7 +1583,7 @@ footer a { color: var(--haze); }
     }
     box.hidden = false;
     box.innerHTML = `<h3>Chez tes amis</h3>` + (byUser.size
-      ? `<ul class="fr-list">${[...byUser.values()].map((u) => `<li class="fr-item">${avatarImg(u.user)}<a href="#ami-${encodeURIComponent(u.user.name)}">${esc(u.user.name)}</a><span class="fr-st">${stChip(deriveStatus(u.sts))}${u.score ? `<span class="lc-score">${Math.max(1, Math.round(u.score / 10))}<small>/10</small></span>` : ""}</span></li>`).join("")}</ul>`
+      ? `<ul class="fr-list">${[...byUser.values()].map((u) => `<li class="fr-item">${avatarImg(u.user)}<a href="#ami-${encodeURIComponent(u.user.name)}">${esc(u.user.name)}</a><span class="fr-st">${stChip(deriveStatus(u.sts))}${u.score ? `<span class="lc-score">${fmtScore(halfOf100(u.score))}<small>/10</small></span>` : ""}</span></li>`).join("")}</ul>`
       : `<p class="muted">Aucun de tes amis n'a cet anime dans sa liste pour l'instant.</p>`);
   }
 
@@ -1604,6 +1623,65 @@ footer a { color: var(--haze); }
       <div class="pc-over" data-for="${it.id}">${overlayHTML(it)}</div>
     </article>`;
   }
+  /* ================= préférés (favourites, kept on AniList; on this device only without an account) ================= */
+  const favIds = (u) => (((u && u.favourites && u.favourites.anime && u.favourites.anime.nodes) || []).map((n) => n && n.id).filter(Boolean));
+  if (!state.favs) state.favs = [];
+  let localFavs = lsGet(K_FAVS, []) || [];
+  const curFavs = () => (state.mode === "local" ? localFavs : state.favs || []);
+  /* A favourite is one media id; an anime in the list is all its seasons, so any of them counts. */
+  function favIdIn(e, favs) {
+    if (!e) return null;
+    const ids = new Set([Number(e.id), ...Object.keys(e.al || {}).map(Number), ...(e.parts || []).map((p) => p.id)]);
+    return (favs || []).find((id) => ids.has(Number(id))) || null;
+  }
+  const isFav = (e) => !!favIdIn(e, curFavs());
+  /* Your favourite anime, in your AniList order. */
+  function favEntries(groups, favs) {
+    const out = [], seen = new Set();
+    for (const id of favs || []) {
+      const e = groups.find((g) => Number(g.id) === Number(id) || (g.al && g.al[id]) || (g.parts || []).some((p) => p.id === Number(id)));
+      if (e && !seen.has(e.id)) { seen.add(e.id); out.push(e); }
+    }
+    return out;
+  }
+  let favBusy = false;
+  function refreshFav() {
+    const f = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.act === "fav";
+    refresh();
+    if (state.sheet && state.sheet.fr) renderTrack();
+    if (f) { const b = $("#dwFav .fav-btn"); if (b) b.focus({ preventScroll: true }); }
+  }
+  async function toggleFav(id) {
+    const e = state.list.get(String(id));
+    if (!e || favBusy) return;
+    const had = favIdIn(e, curFavs());
+    if (state.mode === "local") {
+      localFavs = had ? localFavs.filter((x) => x !== had) : [...localFavs, Number(e.id)];
+      lsSet(K_FAVS, localFavs); refreshFav(); toast(had ? "Retiré de tes préférés." : "Ajouté à tes préférés."); return;
+    }
+    const before = state.favs.slice();
+    state.favs = had ? state.favs.filter((x) => x !== had) : [...state.favs, Number(e.id)];
+    refreshFav();
+    favBusy = true;
+    try {
+      const d = await gql(M_FAV, { id: had || Number(e.id) });
+      const now = (((d && d.ToggleFavourite && d.ToggleFavourite.anime && d.ToggleFavourite.anime.nodes) || []).map((n) => n.id));
+      if (d && d.ToggleFavourite) state.favs = now;
+      toast(had ? "Retiré de tes préférés." : "Ajouté à tes préférés.");
+    } catch (err) {
+      state.favs = before;
+      if (err.kind !== "auth") toast(`Tes préférés n'ont pas été mis à jour. ${errText(err)}`);
+    }
+    favBusy = false;
+    refreshFav();
+  }
+  const ICON_HEART_FULL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.4 0 5.6 3.4 4.3 6.8-1.8 4.8-9.3 9.2-9.3 9.2z" fill="currentColor"/></svg>';
+  const ICON_HEART_LINE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.4 0 5.6 3.4 4.3 6.8-1.8 4.8-9.3 9.2-9.3 9.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  function favSectionHTML(list, title, sub, id, cardOpts) {
+    if (!list.length) return "";
+    return `<section class="group" aria-labelledby="h-${id}"><div class="row-head"><div><h2 id="h-${id}"><span class="fav-ico">${ICON_HEART_FULL}</span>${title}</h2><p>${sub}</p></div></div>
+      <div class="strip" id="row-${id}">${list.map((e) => listCard(e, Object.assign({ fav: true }, cardOpts || {}))).join("")}</div></section>`;
+  }
   function listCard(e, opts = {}) {
     const t = titles(e.en, e.ro);
     const total = e.total || 0, p = e.progress || 0;
@@ -1614,11 +1692,11 @@ footer a { color: var(--haze); }
     const mine = opts.readonly ? entryOf(e.id) : null;
     return `<article class="pc${state.bump === e.id ? " bump" : ""}" style="${tintVars(e.color)};--sc:var(--s-${e.status})">
       <button class="pc-hit" data-act="open" data-id="${e.id}">
-        <span class="pc-img">${img(e.cover, "")}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
+        <span class="pc-img">${img(e.cover, "")}${(opts.fav !== undefined ? opts.fav : !opts.readonly && isFav(e)) ? `<span class="fav-badge" title="Préféré">${ICON_HEART_FULL}<span class="sr">Préféré</span></span>` : ""}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
         <span class="pc-t">${esc(t.main)}</span>
       </button>
-      <div class="lc-meta"><span>${esc(progressLabel(e))}</span><span class="lc-score">${e.score ? `${e.score}<small>/10</small>` : '<small>non noté</small>'}</span></div>
-      ${mine ? `<div class="mine">Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${mine.score}/10` : ""}</div>` : ""}
+      <div class="lc-meta"><span>${esc(progressLabel(e))}</span><span class="lc-score">${e.score ? `${fmtScore(e.score)}<small>/10</small>` : '<small>non noté</small>'}</span></div>
+      ${mine ? `<div class="mine">Toi : ${STATUS[mine.status].toLowerCase()}${mine.score ? `, ${fmtScore(mine.score)}/10` : ""}</div>` : ""}
       <div class="pc-over">
         ${opts.behind ? `<span class="lc-new">${plural(opts.behind, "épisode à voir", "épisodes à voir")}</span>` : fresh && !opts.readonly ? `<span class="lc-new">Nouveaux épisodes</span>` : showTag ? `<span class="pc-tag" style="background:var(--sc);color:var(--night)">${STATUS[e.status]}</span>` : ""}
         ${canInc ? `<button class="lc-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}
@@ -1780,7 +1858,7 @@ footer a { color: var(--haze); }
       <span class="cw-art" aria-hidden="true">${img(e.banner || e.cover, "")}</span>
       <button class="cw-hit" data-act="open" data-id="${e.id}">
         <span class="cw-cover">${img(e.cover, "")}</span>
-        <span class="cw-txt"><span class="cw-t">${esc(t.main)}</span><span class="cw-s">${esc(progressLabel(e))}${e.score ? ` · ${e.score}/10` : ""}</span>${next ? `<span class="cw-next${hot ? " hot" : ""}">${esc(next)}</span>` : ""}</span>
+        <span class="cw-txt"><span class="cw-t">${esc(t.main)}</span><span class="cw-s">${esc(progressLabel(e))}${e.score ? ` · ${fmtScore(e.score)}/10` : ""}</span>${next ? `<span class="cw-next${hot ? " hot" : ""}">${esc(next)}</span>` : ""}</span>
       </button>
       <div class="cw-foot"><div class="progbar" style="--sc:var(--s-watching)"><i style="width:${pct}%"></i></div><span class="cw-w" data-wid="${e.id}">${cwWatchHTML(e)}</span>${canInc ? `<button class="cw-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}</div>
     </article>`;
@@ -1849,7 +1927,7 @@ footer a { color: var(--haze); }
         </div>
         ${state.mode === "anilist" ? `<p class="muted small" id="syncNote" aria-live="polite"></p>` : ""}
       </header>
-      <div class="page">${groupsHTML(all, state.filter, (e) => listCard(e), { cw: true })}</div>
+      <div class="page">${state.filter === "all" ? favSectionHTML(favEntries(all, curFavs()), "Mes préférés", "Tes coups de cœur. Ajoute ou retire un anime avec le cœur de sa fiche.", "favs") : ""}${groupsHTML(all, state.filter, (e) => listCard(e), { cw: true })}</div>
     </div>`;
   }
 
@@ -1909,6 +1987,7 @@ footer a { color: var(--haze); }
       </header>
       <div class="page">
         ${!isMe && all.length && state.list.size ? compatHTML(f, u.name) : ""}
+        ${!isMe ? favSectionHTML(favEntries(all, f.favs || []), "Ses préférés", `Les coups de cœur de ${esc(u.name)}.`, "hisfavs", { readonly: true, add: true }) : ""}
         ${acts && acts.length ? `<section class="group" aria-labelledby="h-act"><h2 id="h-act">Ses dernières activités</h2><ul class="feed">${acts.slice(0, 6).map(actHTML).join("")}</ul></section>` : ""}
         ${all.length ? groupsHTML(all, state.ffilter, (e) => listCard(e, { readonly: true })) : `<p class="muted">Sa liste est vide pour l'instant.</p>`}
       </div>
@@ -2245,7 +2324,7 @@ footer a { color: var(--haze); }
           .sort((a, b) => b.top.score - a.top.score || b.users.size - a.users.size).slice(0, 18)
           .map((g) => {
             const who = g.users.size > 1 ? `${g.top.user.name} et ${plural(g.users.size - 1, "autre", "autres")}` : g.top.user.name;
-            return { it: franchiseCard(g.rep), reason: `${who} : ${Math.max(1, Math.round(g.top.score / 10))}/10` };
+            return { it: franchiseCard(g.rep), reason: `${who} : ${fmtScore(halfOf100(g.top.score))}/10` };
           });
       } catch (_) {}
     }
@@ -2726,7 +2805,7 @@ footer a { color: var(--haze); }
     const t = titles(m.en, m.ro).main;
     return `<article class="pc duo" style="${tintVars(m.color)}">
       <button class="pc-hit" data-act="open" data-id="${m.id}"><span class="pc-img">${img(m.cover, "")}</span><span class="pc-t">${esc(t)}</span></button>
-      <div class="duo-sc"><span class="me" title="Ta note">Toi <b>${m.score}</b></span><span title="La note de ${esc(name)}">${esc(name)} <b>${f.score}</b></span></div>
+      <div class="duo-sc"><span class="me" title="Ta note">Toi <b>${fmtScore(m.score)}</b></span><span title="La note de ${esc(name)}">${esc(name)} <b>${fmtScore(f.score)}</b></span></div>
     </article>`;
   }
   function compatHTML(f, name) {
@@ -2745,7 +2824,7 @@ footer a { color: var(--haze); }
       head = `<section class="compat" aria-label="Votre compatibilité">
         <div class="cp-ring" style="--p:${c.pct}" role="img" aria-label="${c.pct} % de compatibilité"><b class="num">${c.pct}<small>%</small></b></div>
         <div><p class="cp-k">Votre compatibilité</p><h2>${compatLabel(c.pct)}</h2>
-        <p>Calculée sur ${plural(c.pairs.length, "anime noté", "animes notés")} par vous deux.${g ? ` Votre plus gros désaccord : <b>${esc(titles(g[0].en, g[0].ro).main)}</b> (toi ${g[0].score}/10, ${nm} ${g[1].score}/10).` : ""}</p>${both}</div>
+        <p>Calculée sur ${plural(c.pairs.length, "anime noté", "animes notés")} par vous deux.${g ? ` Votre plus gros désaccord : <b>${esc(titles(g[0].en, g[0].ro).main)}</b> (toi ${fmtScore(g[0].score)}/10, ${nm} ${fmtScore(g[1].score)}/10).` : ""}</p>${both}</div>
       </section>`;
     }
     const duo = c.pairs.length ? `<section class="group" aria-labelledby="h-duo"><div class="row-head"><div><h2 id="h-duo">Notés par vous deux</h2><p>Vos notes côte à côte, de vos préférés communs aux moins aimés.</p></div></div>
@@ -2787,7 +2866,10 @@ footer a { color: var(--haze); }
     for (const e of set) if (e.studio) { const v = sm.get(e.studio) || { n: 0, list: [] }; v.n++; v.list.push(e); sm.set(e.studio, v); }
     const studios = [...sm].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0])).slice(0, 5).map(([name, v]) => ({ name, n: v.n, list: v.list }));
     const top = [...scored].sort((a, b) => b.score - a.score || (b.finishedAt || b.updatedAt || 0) - (a.finishedAt || a.updatedAt || 0)).slice(0, 5);
-    const hist = Array.from({ length: 10 }, (_, i) => scored.filter((e) => e.score === i + 1).length);
+    const hist = Array.from({ length: 10 }, (_, i) => scored.filter((e) => Math.floor(e.score) === i + 1).length);
+    const exact = new Map();
+    for (const e of scored) exact.set(e.score, (exact.get(e.score) || 0) + 1);
+    const favScore = [...exact].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0];
     const year = yr || new Date().getFullYear();
     const months = Array.from({ length: 12 }, (_, m) => all.filter((e) => inYear(e, year) && new Date(e.finishedAt).getMonth() === m).length);
     const fm = new Map();
@@ -2806,7 +2888,7 @@ footer a { color: var(--haze); }
     const bulkDay = [...dayCount].sort((a, b) => b[1] - a[1])[0];
     const bulk = bulkDay && bulkDay[1] >= 5 && bulkDay[1] / doneN >= 0.6 ? { n: bulkDay[1], date: new Date(bulkDay[0]).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) } : null;
     const lead = top[0] || longest;
-    return { yr, set, eps, mins, avg, scored, genres, studios, top, hist, year, months, formats, longest, oldest, decade, firstOfYear, lead, bulk,
+    return { yr, set, eps, mins, avg, scored, genres, studios, top, hist, favScore: favScore ? favScore[0] : 0, year, months, formats, longest, oldest, decade, firstOfYear, lead, bulk,
       plan: all.filter((e) => e.status === "plan").length, dropped: all.filter((e) => e.status === "dropped").length };
   }
   function vbarsHTML(values, labels, tip) {
@@ -2859,15 +2941,15 @@ footer a { color: var(--haze); }
         <ul class="hbars">${d.genres.map((x, i) => `<li title="${esc(x.name)} : ${plural(x.n, "anime", "animes")}"><span class="hb-l">${esc(x.name)}</span><span class="hb-t"><i style="width:${Math.max(4, (x.n / max) * 100)}%;animation-delay:${i * 60}ms"></i></span><span class="hb-v">${x.n}</span></li>`).join("")}</ul></section>`);
     }
     if (d.scored.length) {
-      const fav = d.hist.indexOf(Math.max(...d.hist)) + 1;
+      const fav = fmtScore(d.favScore);
       const verdict = d.avg >= 8 ? "Tu es plutôt généreux avec tes notes." : d.avg <= 6 ? "Tu es plutôt exigeant avec tes notes." : "Tu notes de façon équilibrée.";
       cards.push(`<section class="bl-card" aria-labelledby="bl-n"><h2 id="bl-n">Comment tu notes</h2>
         <p class="bl-lead">${verdict} Ta note la plus fréquente : <b>${fav}/10</b>.</p>
-        ${vbarsHTML(d.hist, d.hist.map((_, i) => i + 1), (v, i) => `${i + 1}/10 : ${plural(v, "anime", "animes")}`)}</section>`);
+        ${vbarsHTML(d.hist, d.hist.map((_, i) => i + 1), (v, i) => `${i + 1}${i < 9 ? ` ou ${i + 1},5` : ""}/10 : ${plural(v, "anime", "animes")}`)}</section>`);
     }
     if (d.top.length) {
       cards.push(`<section class="bl-card wide" aria-labelledby="bl-t"><h2 id="bl-t">${d.top.length >= 5 ? "Ton top 5" : d.top.length > 1 ? `Ton top ${d.top.length}` : "Ton préféré"}</h2>
-        <div class="strip ranked" id="row-bltop">${d.top.map((e, i) => posterCard({ id: Number(e.id), title: titles(e.en, e.ro).main, cover: e.cover, color: e.color }, i + 1, `${e.score}/10`)).join("")}</div></section>`);
+        <div class="strip ranked" id="row-bltop">${d.top.map((e, i) => posterCard({ id: Number(e.id), title: titles(e.en, e.ro).main, cover: e.cover, color: e.color }, i + 1, `${fmtScore(e.score)}/10`)).join("")}</div></section>`);
     }
     if (d.studios.length) {
       const s = d.studios[0];
@@ -2978,7 +3060,7 @@ footer a { color: var(--haze); }
           y += 62;
           x.fillStyle = "#807BAA"; x.font = `44px ${D}`; x.fillText(String(i + 1), P, y);
           x.fillStyle = "#F4F2FF"; x.font = `800 36px ${B}`; x.fillText(fit(titles(e.en, e.ro).main, W - 2 * P - 190), P + 64, y - 4);
-          x.fillStyle = "#ABA6D4"; x.font = `700 32px ${B}`; const sc = `${e.score}/10`; x.fillText(sc, W - P - x.measureText(sc).width, y - 4);
+          x.fillStyle = "#ABA6D4"; x.font = `700 32px ${B}`; const sc = `${fmtScore(e.score)}/10`; x.fillText(sc, W - P - x.measureText(sc).width, y - 4);
         }
       }
       x.fillStyle = "rgba(201,197,240,.16)"; x.fillRect(P, H - 112, W - 2 * P, 2);
@@ -3563,7 +3645,7 @@ footer a { color: var(--haze); }
       <div class="dw-banner">${r.bannerImage ? img(r.bannerImage, "") : img(r.coverImage?.large, "", "blur")}</div>
       <div class="dw-head">
         <img class="dw-cover" src="${esc(r.coverImage?.extraLarge || r.coverImage?.large || "")}" alt="Affiche de ${esc(t.main)}" onerror="this.style.visibility='hidden'">
-        <div><h2 id="dwTitle">${esc(t.main)}</h2>${t.alt ? `<p class="dw-alt">${esc(t.alt)}</p>` : ""}</div>
+        <div><h2 id="dwTitle">${esc(t.main)}</h2>${t.alt ? `<p class="dw-alt">${esc(t.alt)}</p>` : ""}<div id="dwFav"></div></div>
       </div>
       <div class="dw-body">
         <ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
@@ -3609,8 +3691,12 @@ footer a { color: var(--haze); }
         : `<label for="inEp">Épisode <input id="inEp" type="number" min="0" ${total ? `max="${total}"` : ""} inputmode="numeric" value="${e.progress || 0}"></label><span class="of">sur ${total || "?"}</span>`;
       tr.innerHTML = `<div class="panel" style="--sc:var(--s-${e.status})">
         <div class="field"><div class="field-l">Statut</div><div class="sts" role="group" aria-label="Statut">${stBtns}</div></div>
-        <div class="field"><div class="field-l">Ma note <span>${sc ? `${sc}/10, ${SCORE_LABEL[sc].toLowerCase()}` : "Pas encore noté"}</span></div>
-          <div class="scores" role="group" aria-label="Ma note sur 10">${Array.from({ length: 10 }, (_, i) => i + 1).map((v) => `<button data-act="score" data-v="${v}" aria-pressed="${sc === v}" class="${sc && v < sc ? "on" : ""}" aria-label="${v} sur 10, ${SCORE_LABEL[v]}">${v}</button>`).join("")}</div></div>
+        <div class="field"><div class="field-l score-head"><span class="score-l">Ma note <span>${sc ? `${fmtScore(sc)}/10, ${SCORE_LABEL[Math.floor(sc)].toLowerCase()}` : "Pas encore noté"}</span></span>
+            <button class="half" data-act="score-half" aria-pressed="${sc % 1 !== 0}"${!sc || sc >= 10 ? " disabled" : ""} title="Ajoute un demi-point : 7 devient 7,5">+ ½ point</button></div>
+          <div class="scores" role="group" aria-label="Ma note sur 10">${Array.from({ length: 10 }, (_, i) => i + 1).map((v) => {
+            const on = Math.floor(sc) === v, half = on && sc % 1 !== 0;
+            return `<button data-act="score" data-v="${v}" aria-pressed="${on}" class="${sc && v < Math.floor(sc) ? "on" : ""}" aria-label="${v} sur 10, ${SCORE_LABEL[v]}">${v}${half ? "½" : ""}</button>`;
+          }).join("")}</div></div>
         <div class="field"><div class="field-l">Où j'en suis <span>${esc(progressLabel(e))}${total ? `, ${pct} %` : ""}</span></div>
           <div class="prog">${progCtl}<div class="step"><button data-act="dec" aria-label="Un épisode de moins">−</button><button data-act="incd" aria-label="Un épisode de plus">+</button></div></div>
           <div class="progbar"><i style="width:${pct}%"></i></div></div>
@@ -3618,6 +3704,11 @@ footer a { color: var(--haze); }
       </div>`;
     }
     renderParts();
+    const fb = $("#dwFav");
+    if (fb) {
+      const fav = isFav(e);
+      fb.innerHTML = e ? `<button class="fav-btn" data-act="fav" aria-pressed="${fav}">${fav ? ICON_HEART_FULL : ICON_HEART_LINE}${fav ? "Dans mes préférés" : "Ajouter à mes préférés"}</button>` : "";
+    }
     const foot = $("#dwFoot");
     if (foot) foot.innerHTML = e ? `<div class="dw-foot"><span>${e.addedAt ? `Dans ta liste depuis le ${new Date(e.addedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}` : "Dans ta liste"}</span><button class="danger${removeArmed ? " armed" : ""}" data-act="remove">${removeArmed ? "Confirmer le retrait" : "Retirer de ma liste"}</button></div>` : "";
     if (keep) { const el = $(keep, $("#drawer")); if (el) el.focus({ preventScroll: true }); }
@@ -3717,7 +3808,17 @@ footer a { color: var(--haze); }
         else updateEntry(sid, { status: s });
         break;
       }
-      case "score": { const e = state.list.get(sid); if (e) { const v = Number(el.dataset.v); updateEntry(sid, { score: e.score === v ? 0 : v }); } break; }
+      case "score": {
+        const e = state.list.get(sid);
+        if (e) { const v = Number(el.dataset.v), cur = e.score || 0, half = cur % 1 !== 0; updateEntry(sid, { score: Math.floor(cur) === v ? 0 : half && v < 10 ? v + 0.5 : v }); }
+        break;
+      }
+      case "fav": if (sid) toggleFav(sid); break;
+      case "score-half": {
+        const e = state.list.get(sid);
+        if (e && e.score && e.score < 10) updateEntry(sid, { score: e.score % 1 ? Math.floor(e.score) : Math.floor(e.score) + 0.5 });
+        break;
+      }
       case "dec": { const e = state.list.get(sid); if (e) updateEntry(sid, { progress: (e.progress || 0) - 1 }); break; }
       case "incd": { const e = state.list.get(sid); if (e) updateEntry(sid, { progress: (e.progress || 0) + 1 }); break; }
       case "syn": synOpen = !synOpen; $("#syn")?.classList.toggle("clamp", !synOpen); el.textContent = synOpen ? "Réduire" : "Lire la suite"; break;
