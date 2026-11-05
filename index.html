@@ -828,7 +828,7 @@ footer a { color: var(--haze); }
   const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
   const K_FAVS = "animatheque.preferes.v1";
   // Copies of what AniList sent last time, shown straight away on the next visit while the fresh version loads.
-  const K_ME = "animatheque.moi.v1", K_FLISTS = "animatheque.listes-amis.v1", K_FOLLOW = "animatheque.amis.v1";
+  const K_ME = "animatheque.moi.v1", K_FLISTS = "animatheque.listes-amis.v1", K_FOLLOW = "animatheque.amis.v1", K_PENDING = "animatheque.en-attente.v1";
   for (const k of ["animatheque.populaires.v1", "animatheque.populaires.v2"]) { try { localStorage.removeItem(k); } catch (_) {} }
   const M_SAVE = `mutation($mediaId:Int,$status:MediaListStatus,$progress:Int,$scoreRaw:Int,$notes:String,$completedAt:FuzzyDateInput){SaveMediaListEntry(mediaId:$mediaId,status:$status,progress:$progress,scoreRaw:$scoreRaw,notes:$notes,completedAt:$completedAt){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}}`;
   const M_DELETE = `mutation($id:Int){DeleteMediaListEntry(id:$id){deleted}}`;
@@ -1106,6 +1106,9 @@ footer a { color: var(--haze); }
     if (c && Date.now() - c.at < 12 * 3600e3) { FR.set(id, c); return c; }
     return null;
   }
+  // Any saved copy, even an old one: good enough to open a sheet at once while the fresh one loads.
+  function frAny(id) { return FR.get(id) || lsGet(K_FR + id, null); }
+  const PROV = new Map();
   function frSet(id, fr) {
     FR.set(id, fr);
     if (!lsSet(K_FR + id, fr)) {
@@ -1269,6 +1272,7 @@ footer a { color: var(--haze); }
       const rootRow = members.find((r) => r.media.id === k);
       const root = fr ? fr.root : rootRow ? rootRow.media : members.map((r) => r.media).sort(byStart)[0];
       const partsSrc = fr ? fr.parts : (SERIES.has(root.format) ? members.map((r) => r.media).filter((m) => SERIES.has(m.format)) : [root]).sort(byStart);
+      if (mine && !fr) PROV.set(Number(k), { at: 0, partial: true, root, parts: partsSrc, films: [] });
       if (!seriesPrequel(root)) for (const r of members) if (r.media.id !== k && !ROOT.has(r.media.id)) { rememberRoot(r.media.id, k, false); learned = true; }
       const al = {};
       for (const r of members) al[r.media.id] = { id: r.id, status: r.status, progress: r.progress || 0, score: Math.round(r.score || 0), notes: r.notes || "", updatedAt: r.updatedAt || 0, createdAt: r.createdAt || 0, done: dateTs(r.completedAt) };
@@ -1308,11 +1312,25 @@ footer a { color: var(--haze); }
   const syncs = new Map();
   function queueSync(id, delay = 900) {
     let s = syncs.get(id);
-    if (!s) { s = { timer: null, busy: false, again: false }; syncs.set(id, s); }
+    if (!s) { s = { timer: null, busy: false, again: false, fails: 0 }; syncs.set(id, s); }
     clearTimeout(s.timer);
     s.timer = setTimeout(() => { s.timer = null; runSync(id); }, delay);
     paintSyncState();
+    savePending();
   }
+  /* Changes not yet accepted by AniList are kept in the browser too, so closing the app doesn't lose them. */
+  function savePending() {
+    if (state.mode !== "anilist") return;
+    const list = {};
+    for (const id of syncs.keys()) { const e = state.list.get(id); if (e) list[id] = e; }
+    if (Object.keys(list).length) lsSet(K_PENDING, { tok: tokTag(), at: Date.now(), list }); else lsDel(K_PENDING);
+  }
+  function applyPending(next) {
+    const p = lsGet(K_PENDING, null);
+    if (!p || p.tok !== tokTag() || !p.list || Date.now() - p.at > 7 * 864e5) return;
+    for (const [id, e] of Object.entries(p.list)) { if (syncs.has(id)) continue; next.set(id, e); setTimeout(() => queueSync(id, 400), 0); }
+  }
+  function retryPending() { for (const [id, s] of syncs) if (s.fails && !s.busy) { clearTimeout(s.timer); s.timer = null; runSync(id); } }
   async function runSync(id) {
     const s = syncs.get(id);
     if (!s) return;
@@ -1321,33 +1339,58 @@ footer a { color: var(--haze); }
     let failed = null;
     try { await syncGroup(id); } catch (err) { failed = err; }
     s.busy = false;
+    if (failed && ["network", "rate", "offline"].includes(failed.kind)) {
+      // AniList is busy or the connection dropped: the change stays here and goes out again on its own.
+      s.fails++;
+      const wait = [20, 45, 90, 180, 300][Math.min(s.fails, 5) - 1] * 1000;
+      clearTimeout(s.timer);
+      s.timer = setTimeout(() => { s.timer = null; runSync(id); }, wait);
+      if (s.fails === 1) toast("AniList ne répond pas pour l'instant. Ton changement est gardé et sera envoyé tout seul dès qu'il répond.");
+      paintSyncState(); savePending();
+      return;
+    }
     if (failed && failed.kind !== "auth") {
-      syncs.delete(id); paintSyncState();
+      syncs.delete(id); paintSyncState(); savePending();
       toast(`Un changement n'a pas été enregistré sur AniList. ${errText(failed)}`);
       loadMyList();
       return;
     }
     if (s.again) { s.again = false; return runSync(id); }
+    if (!failed) s.fails = 0;
     if (!s.timer) syncs.delete(id);
-    paintSyncState();
+    paintSyncState(); savePending();
   }
   async function syncGroup(id) {
     if (state.mode !== "anilist") return;
     const e = state.list.get(id);
     if (!e) return;
+    const jobs = [];
     for (const [mid, w] of desiredFor(e)) {
-      const cur = state.list.get(id);
-      if (!cur) return;
-      const have = (cur.al || {})[mid];
+      const have = (e.al || {})[mid];
       if (have && have.status === w.status && have.progress === w.progress && have.score === w.scoreRaw && (w.notes === undefined || (have.notes || "") === w.notes)) continue;
       const vars = { mediaId: mid, status: w.status, progress: w.progress, scoreRaw: w.scoreRaw };
       if (w.notes !== undefined) vars.notes = w.notes;
       if (w.status === "COMPLETED" && (!have || have.status !== "COMPLETED")) { const t = new Date(); vars.completedAt = { year: t.getFullYear(), month: t.getMonth() + 1, day: t.getDate() }; }
-      const d = await gql(M_SAVE, vars);
-      const r = d && d.SaveMediaListEntry;
-      const now = state.list.get(id);
-      if (r && now) now.al = Object.assign({}, now.al, { [mid]: { id: r.id, status: r.status, progress: r.progress || 0, score: Math.round(r.score || 0), notes: r.notes || "", updatedAt: r.updatedAt || 0, createdAt: have ? have.createdAt : Math.floor(Date.now() / 1000), done: dateTs(r.completedAt) || (vars.completedAt ? Date.now() : have ? have.done || 0 : 0) } });
+      jobs.push({ mid, have, vars });
     }
+    if (!jobs.length) return;
+    // AniList counts requests, not changes: every season that changed goes in a single request.
+    const defs = [], fields = [], variables = {};
+    jobs.forEach(({ vars }, i) => {
+      const args = [`mediaId:$m${i}`, `status:$s${i}`, `progress:$p${i}`, `scoreRaw:$r${i}`];
+      defs.push(`$m${i}:Int`, `$s${i}:MediaListStatus`, `$p${i}:Int`, `$r${i}:Int`);
+      Object.assign(variables, { ["m" + i]: vars.mediaId, ["s" + i]: vars.status, ["p" + i]: vars.progress, ["r" + i]: vars.scoreRaw });
+      if (vars.notes !== undefined) { defs.push(`$n${i}:String`); args.push(`notes:$n${i}`); variables["n" + i] = vars.notes; }
+      if (vars.completedAt) { defs.push(`$c${i}:FuzzyDateInput`); args.push(`completedAt:$c${i}`); variables["c" + i] = vars.completedAt; }
+      fields.push(`a${i}:SaveMediaListEntry(${args.join(",")}){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}`);
+    });
+    const d = await gql(`mutation(${defs.join(",")}){${fields.join(" ")}}`, variables);
+    const now = state.list.get(id);
+    if (!now) return;
+    jobs.forEach(({ mid, have, vars }, i) => {
+      const r = d && d["a" + i];
+      if (r) now.al = Object.assign({}, now.al, { [mid]: { id: r.id, status: r.status, progress: r.progress || 0, score: Math.round(r.score || 0), notes: r.notes || "", updatedAt: r.updatedAt || 0, createdAt: have ? have.createdAt : Math.floor(Date.now() / 1000), done: dateTs(r.completedAt) || (vars.completedAt ? Date.now() : have ? have.done || 0 : 0) } });
+    });
   }
   async function deleteGroup(e) {
     for (const s of Object.values(e.al || {})) if (s.id) await gql(M_DELETE, { id: s.id });
@@ -1356,7 +1399,8 @@ footer a { color: var(--haze); }
     const el = $("#syncNote");
     if (!el) return;
     const n = [...syncs.values()].length;
-    el.textContent = state.mode !== "anilist" ? "" : n ? "Enregistrement sur AniList…" : "Synchronisé avec AniList";
+    const waiting = [...syncs.values()].some((s) => s.fails);
+    el.textContent = state.mode !== "anilist" ? "" : waiting ? "AniList ne répond pas : tes changements sont gardés, nouvel essai automatique" : n ? "Enregistrement sur AniList…" : "Synchronisé avec AniList";
   }
 
   /* ================= persistence ================= */
@@ -1414,7 +1458,7 @@ footer a { color: var(--haze); }
     id = String(id);
     const e = state.list.get(id);
     if (!e) return;
-    const s = syncs.get(id); if (s) { clearTimeout(s.timer); syncs.delete(id); }
+    const s = syncs.get(id); if (s) { clearTimeout(s.timer); syncs.delete(id); savePending(); }
     state.list.delete(id);
     closeDrawer(); refresh();
     const t = titles(e.en, e.ro).main;
@@ -1433,7 +1477,7 @@ footer a { color: var(--haze); }
   function toLocal() {
     for (const s of syncs.values()) clearTimeout(s.timer);
     syncs.clear();
-    lsDel(K_TOKEN); lsDel(K_ME); lsDel(K_FLISTS); lsDel(K_FOLLOW); meRaw = "";
+    lsDel(K_TOKEN); lsDel(K_ME); lsDel(K_FLISTS); lsDel(K_FOLLOW); lsDel(K_PENDING); meRaw = "";
     auth.token = null; auth.viewer = null;
     state.mode = "local"; state.list = localList; state.alLoaded = false; state.alErr = null;
     state.friends = null; state.friend = null; FRON.clear(); FRIENDS.clear();
@@ -1453,6 +1497,7 @@ footer a { color: var(--haze); }
     try {
       const next = new Map();
       for (const e of buildGroups(c.col, true)) next.set(e.id, e);
+      applyPending(next);
       auth.viewer = c.viewer;
       state.list = next; state.favs = favIds(c.col.user); state.alLoaded = true;
       meRaw = JSON.stringify(c.col);
@@ -1500,11 +1545,12 @@ footer a { color: var(--haze); }
       const d = await gql(Q_COLLECTION, { userId: auth.viewer.id });
       const raw = JSON.stringify(d.MediaListCollection);
       // Same as the copy already on screen: nothing to redraw.
-      if (raw === meRaw && state.alLoaded && !hadErr && !force) { lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); return; }
+      if (raw === meRaw && state.alLoaded && !hadErr && !force && !lsGet(K_PENDING, null)) { lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); return; }
       const next = new Map();
       for (const e of buildGroups(d.MediaListCollection, true)) next.set(e.id, e);
       state.favs = favIds(d.MediaListCollection.user);
       for (const [id, e] of state.list) if (syncs.has(id)) next.set(id, e);
+      applyPending(next);
       state.list = next;
       state.alLoaded = true;
       meRaw = raw;
@@ -2489,7 +2535,20 @@ footer a { color: var(--haze); }
     else if (isIOS) el.innerHTML = `<span>Pour l'installer sur iPhone : touche Partager, puis « Sur l'écran d'accueil ».</span>`;
     else el.innerHTML = "";
   }
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    const hadWorker = !!navigator.serviceWorker.controller;
+    let checkedAt = Date.now(), reloadOnShow = false, reloading = false;
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      // An app left open in the background never asks for updates: ask when it comes back to the front.
+      document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - checkedAt > 5 * 60e3) { checkedAt = Date.now(); reg.update().catch(() => {}); } });
+    }).catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadWorker || reloading) return;
+      if (document.hidden) { reloadOnShow = true; return; }
+      toast("Une nouvelle version d'Animathèque est prête.", "Actualiser", () => { reloading = true; location.reload(); });
+    });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && reloadOnShow && !reloading && !syncs.size) { reloading = true; location.reload(); } });
+  }
 
   /* ================= notifications ================= */
   const ICON_BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2.3 2.3 0 0 0 4 0"/></svg>';
@@ -3715,17 +3774,35 @@ footer a { color: var(--haze); }
     document.documentElement.style.overflow = "hidden";
     $("#drawer").scrollTop = 0;
     $("#drawer").focus({ preventScroll: true });
-    try {
-      let rootId = e ? Number(e.id) : (it && !it.seq ? id : ROOT.get(id));
-      if (!rootId) rootId = await resolveRoot(it ? it.raw : await getLite(id));
-      const fr = await loadFranchise(rootId);
+    let shown = null;
+    const show = (rootId, fr) => {
       if (my !== sheetToken) return;
+      const dw = $("#drawer"), top = dw.scrollTop, a = document.activeElement;
+      const focus = shown && a && dw.contains(a) && a.dataset && a.dataset.act ? `[data-act="${a.dataset.act}"]${a.dataset.v ? `[data-v="${a.dataset.v}"]` : ""}${a.dataset.i ? `[data-i="${a.dataset.i}"]` : ""}` : null;
       state.sheet = { id: rootId, fr };
       const entry = state.list.get(String(rootId));
-      if (entry) syncEntry(entry, fr);
+      if (entry && !fr.partial) syncEntry(entry, fr);
       renderDrawer();
+      if (shown) { dw.scrollTop = top; if (focus) { const f = dw.querySelector(focus); if (f) f.focus({ preventScroll: true }); } }
+      shown = fr;
+    };
+    let rootId = 0;
+    try {
+      rootId = e ? Number(e.id) : (it && !it.seq ? id : ROOT.get(id));
+      if (!rootId) rootId = await resolveRoot(it ? it.raw : await getLite(id));
+      const fresh = frGet(rootId);
+      if (fresh) { show(rootId, fresh); return; }
+      // Something to show right away (an older copy, or what your list already says), then the full sheet.
+      const quick = frAny(rootId) || PROV.get(rootId) || null;
+      if (quick) show(rootId, quick);
+      show(rootId, await loadFranchise(rootId, true));
     } catch (err) {
       if (my !== sheetToken) return;
+      if (shown) {
+        const n = $("#dwNote");
+        if (n) { n.hidden = false; n.innerHTML = `<span>AniList ne répond pas : le reste de la fiche s'affichera plus tard. Tu peux déjà noter et suivre ta progression.</span><button class="btn btn-sm" data-act="reopen" data-id="${id}">Réessayer</button>`; }
+        return;
+      }
       const l = $("#dwLoading");
       if (l) l.innerHTML = `<div class="notice"><span>${esc(errText(err))}</span><button class="btn btn-sm" data-act="reopen" data-id="${id}">Réessayer</button></div>`;
     }
@@ -3769,6 +3846,7 @@ footer a { color: var(--haze); }
         <div><h2 id="dwTitle">${esc(t.main)}</h2>${t.alt ? `<p class="dw-alt">${esc(t.alt)}</p>` : ""}<div id="dwFav"></div></div>
       </div>
       <div class="dw-body">
+        <div class="notice" id="dwNote" hidden></div>
         <ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
         ${airing ? `<p class="airing">Prochain : ${esc(airing)}</p>` : ""}
         <div id="track"></div>
@@ -3786,7 +3864,7 @@ footer a { color: var(--haze); }
       </div>`;
     renderTrack();
     loadWatch(fr);
-    if (auth.viewer) loadFriendsOn(fr);
+    if (auth.viewer && !fr.partial) loadFriendsOn(fr);
   }
   function renderTrack() {
     if (!state.sheet || !state.sheet.fr) return;
@@ -4107,7 +4185,8 @@ footer a { color: var(--haze); }
   setInterval(() => { if (!document.hidden) pollNotifs(); }, 90000);
   setInterval(() => refreshFriends(false), 60000);
   setInterval(() => { if (state.view === "amis" && !feedLoading) paintFeedState(); }, 30000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollNotifs(); refreshFriends(false); refreshViewer(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollNotifs(); refreshFriends(false); refreshViewer(); retryPending(); } });
+  window.addEventListener("online", () => retryPending());
   window.addEventListener("focus", () => refreshViewer());
   if (pendingToast) toast(pendingToast);
 })();
