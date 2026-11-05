@@ -1107,19 +1107,24 @@ footer a { color: var(--haze); }
     return null;
   }
   // Any saved copy, even an old one: good enough to open a sheet at once while the fresh one loads.
-  function frAny(id) { return FR.get(id) || lsGet(K_FR + id, null); }
+  const FRS = new Map();
+  function frAny(id) {
+    if (FR.has(id)) return FR.get(id);
+    if (!FRS.has(id)) FRS.set(id, lsGet(K_FR + id, null));
+    return FRS.get(id);
+  }
   const PROV = new Map();
   function frSet(id, fr) {
-    FR.set(id, fr);
+    FR.set(id, fr); FRS.delete(id);
     if (!lsSet(K_FR + id, fr)) {
       try { Object.keys(localStorage).filter((k) => k.startsWith(K_FR)).forEach((k) => localStorage.removeItem(k)); } catch (_) {}
       lsSet(K_FR + id, fr);
     }
   }
   const byStart = (a, b) => ((a.startDate?.year || 9999) - (b.startDate?.year || 9999)) || ((a.startDate?.month || 13) - (b.startDate?.month || 13)) || ((a.startDate?.day || 32) - (b.startDate?.day || 32));
-  async function loadFranchise(rootId, force) {
+  async function loadFranchise(rootId, force, bg) {
     if (!force) { const c = frGet(rootId); if (c) return c; }
-    const d = await gql(Q_ROOT, { id: rootId });
+    const d = await gql(Q_ROOT, { id: rootId }, { bg: !!bg });
     const root = d?.Media;
     if (!root) throw new ApiError("missing");
     const nodes = new Map([[root.id, root]]);
@@ -1127,7 +1132,7 @@ footer a { color: var(--haze); }
     for (let lvl = 0; lvl < 10 && frontier.length && nodes.size < 40; lvl++) {
       const ids = [...new Set(frontier)].filter((x) => !nodes.has(x)).slice(0, 25);
       if (!ids.length) break;
-      const r = await gql(Q_PARTS, { ids });
+      const r = await gql(Q_PARTS, { ids }, { bg: !!bg });
       const got = r?.Page?.media || [];
       for (const x of got) nodes.set(x.id, x);
       frontier = got.flatMap(sequelIds).filter((x) => !nodes.has(x));
@@ -1257,7 +1262,7 @@ footer a { color: var(--haze); }
     const byMedia = new Map(rows.map((r) => [r.media.id, r]));
     const keyFor = (m) => {
       const r = ROOT.get(m.id);
-      if (r && (byMedia.has(r) || frGet(r))) return r;
+      if (r && (byMedia.has(r) || frAny(r))) return r;
       let cur = m;
       for (let i = 0; i < 15; i++) { const p = seriesPrequel(cur); if (!p || !byMedia.has(p.node.id)) break; cur = byMedia.get(p.node.id).media; }
       return cur.id;
@@ -1268,9 +1273,11 @@ footer a { color: var(--haze); }
     let learned = false;
     const out = [];
     for (const [k, members] of groups) {
-      const fr = frGet(k);
+      const fr = frAny(k);
       const rootRow = members.find((r) => r.media.id === k);
       const root = fr ? fr.root : rootRow ? rootRow.media : members.map((r) => r.media).sort(byStart)[0];
+      // Only a later season is in this list: find the earlier ones so they count, the same way for everyone.
+      if (!fr && seriesPrequel(root) && !TRIED.has(root.id)) NEED.set(root.id, root);
       const partsSrc = fr ? fr.parts : (SERIES.has(root.format) ? members.map((r) => r.media).filter((m) => SERIES.has(m.format)) : [root]).sort(byStart);
       if (mine && !fr) PROV.set(Number(k), { at: 0, partial: true, root, parts: partsSrc, films: [] });
       if (!seriesPrequel(root)) for (const r of members) if (r.media.id !== k && !ROOT.has(r.media.id)) { rememberRoot(r.media.id, k, false); learned = true; }
@@ -1285,7 +1292,67 @@ footer a { color: var(--haze); }
       out.push(applyAl(e));
     }
     if (learned) lsSet(K_ROOT, Object.fromEntries(ROOT));
+    scheduleResolve();
     return out;
+  }
+  /* Someone who only added "season 6" has seen seasons 1 to 5: look up those seasons quietly (a few at a time,
+     AniList allows about 30 requests a minute), then count them, in your list and on your friends' pages alike. */
+  const NEED = new Map(), TRIED = new Set();
+  let resolving = false, resolveTimer = null;
+  function scheduleResolve(wait = 2500) { if (!NEED.size || resolving) return; clearTimeout(resolveTimer); resolveTimer = setTimeout(resolveMissing, wait); }
+  async function resolveRootBg(m) {
+    let cur = m;
+    for (let i = 0; i < 12; i++) {
+      const p = seriesPrequel(cur);
+      if (!p) break;
+      if (ROOT.has(p.node.id)) { cur = { id: ROOT.get(p.node.id) }; break; }
+      let x = LITE.get(p.node.id);
+      if (!x) { const d = await gql(Q_PARTS, { ids: [p.node.id] }, { bg: true }); x = d?.Page?.media?.[0]; if (!x) break; LITE.set(x.id, x); }
+      cur = x;
+    }
+    if (cur.id !== m.id) rememberRoot(m.id, cur.id);
+    return cur.id;
+  }
+  async function resolveMissing() {
+    if (resolving || !NEED.size) return;
+    resolving = true;
+    let n = 0, pause = false;
+    for (const [k, m] of [...NEED]) {
+      if (n >= 8) break;
+      try {
+        const root = await resolveRootBg(m);
+        if (!frAny(root)) await loadFranchise(root, true, true);
+        TRIED.add(k); NEED.delete(k); n++;
+      } catch (err) {
+        if (err && ["rate", "network", "offline"].includes(err.kind)) { pause = true; break; }
+        TRIED.add(k); NEED.delete(k);
+      }
+    }
+    resolving = false;
+    if (n) regroup();
+    if (NEED.size) scheduleResolve(pause ? 90000 : 20000);
+  }
+  const groupSig = (list) => JSON.stringify(list.map((e) => [e.id, e.progress, e.total, e.status, (e.parts || []).length]));
+  function regroup() {
+    let changed = false;
+    // Your list: not while a change is still on its way to AniList (it would show twice).
+    if (state.mode === "anilist" && meRaw) {
+      if (syncs.size || state.sheet) setTimeout(regroup, 15000);
+      else {
+        const next = new Map();
+        for (const e of buildGroups(JSON.parse(meRaw), true)) next.set(e.id, e);
+        if (groupSig([...next.values()]) !== groupSig([...state.list.values()])) { state.list = next; changed = true; }
+      }
+    }
+    for (const [key, c] of FRIENDS) {
+      if (!c.raw || !c.data || !c.data.groups) continue;
+      const groups = buildGroups(JSON.parse(c.raw), false);
+      if (groupSig(groups) === groupSig(c.data.groups)) continue;
+      c.data = Object.assign({}, c.data, { groups });
+      if (state.friend && String(state.friend.name).toLowerCase() === key) { state.friend = c.data; changed = true; }
+      else if (state.view === "amis") changed = true;
+    }
+    if (changed) render();
   }
   function desiredFor(e) {
     const inc = included(e), al = e.al || {}, out = new Map();
