@@ -467,6 +467,10 @@ footer a { color: var(--haze); }
 .me-row { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 18px; margin: -48px 0 0 22px; }
 .me-row .avatar { width: 96px; height: 96px; box-shadow: 0 0 0 4px var(--night), 0 14px 30px -12px rgba(0,0,0,.8); }
 .me-row h1 { margin: 0; }
+.me-av { position: relative; flex: none; }
+.me-av-edit { position: absolute; right: -2px; bottom: 2px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sakura); color: var(--sakura-ink); box-shadow: 0 0 0 3px var(--night); }
+.me-av-edit:hover { background: var(--paper); color: var(--night); }
+.me-av-edit svg { width: 16px; height: 16px; }
 .me-name { margin: 6px 0 4px; color: var(--haze); font-size: 14px; }
 .strip.cw-strip { grid-auto-columns: 340px; gap: 16px; }
 .cw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
@@ -554,6 +558,8 @@ footer a { color: var(--haze); }
   .me-banner { height: 120px; border-radius: 18px; }
   .me-row { margin: -40px 0 0 14px; gap: 14px; }
   .me-row .avatar { width: 80px; height: 80px; }
+  .me-av-edit { width: 28px; height: 28px; right: -3px; bottom: 0; }
+  .me-av-edit svg { width: 14px; height: 14px; }
   .cw-hit { grid-template-columns: 66px minmax(0, 1fr); gap: 14px; }
   .cw-cover { width: 66px; }
   .cw-t { font-size: 16.5px; }
@@ -1466,6 +1472,26 @@ footer a { color: var(--haze); }
       await loadMyList();
     } catch (err) { if (err.kind !== "auth") { state.alErr = err; render(); } }
   }
+  /* After a trip to AniList's settings, fetch the profile again so the new photo (or banner) shows up here. */
+  let avatarCheckAt = 0, viewerBusy = false;
+  async function refreshViewer() {
+    if (!auth.token || !auth.viewer || viewerBusy || Date.now() - avatarCheckAt > 30 * 60e3) return;
+    viewerBusy = true;
+    const look = (v) => JSON.stringify([v.avatar, v.bannerImage]);
+    const before = look(auth.viewer), oldAv = JSON.stringify(auth.viewer.avatar);
+    try {
+      const d = await gql(Q_VIEWER, {});
+      if (d && d.Viewer && auth.viewer && d.Viewer.id === auth.viewer.id && look(d.Viewer) !== before) {
+        auth.viewer = d.Viewer;
+        const c = lsGet(K_ME, null);
+        if (c && c.tok === tokTag()) { c.viewer = d.Viewer; lsSet(K_ME, c); }
+        render();
+        toast(JSON.stringify(d.Viewer.avatar) !== oldAv ? "Ta nouvelle photo de profil est là." : "Ta nouvelle bannière est là.");
+        avatarCheckAt = 0;
+      }
+    } catch (_) {}
+    viewerBusy = false;
+  }
   async function loadMyList(force) {
     if (state.mode !== "anilist" || !auth.viewer) return;
     const hadErr = !!state.alErr;
@@ -1507,6 +1533,7 @@ footer a { color: var(--haze); }
         <a href="#liste" role="menuitem">Ma liste</a>
         <a href="#amis" role="menuitem">Mes amis</a>
         <a href="#bilan" role="menuitem">Mon bilan anime</a>
+        ${v ? `<a href="${AL_SETTINGS}" target="_blank" rel="noopener" role="menuitem" data-act="avatar-edit">Changer ma photo de profil</a>` : ""}
         ${v ? `<a href="${esc(v.siteUrl || "https://anilist.co")}" target="_blank" rel="noopener" role="menuitem">Mon profil AniList</a>` : ""}
         <button data-act="logout" role="menuitem">Se déconnecter</button></div>` : ""}`;
   }
@@ -1950,13 +1977,16 @@ footer a { color: var(--haze); }
       <div class="cw-foot"><div class="progbar" style="--sc:var(--s-watching)"><i style="width:${pct}%"></i></div><span class="cw-w" data-wid="${e.id}">${cwWatchHTML(e)}</span>${canInc ? `<button class="cw-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}</div>
     </article>`;
   }
+  // AniList doesn't let other sites send a picture: the photo and the banner are changed on its settings page.
+  const AL_SETTINGS = "https://anilist.co/settings";
+  const ICON_PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="2.2"/></svg>';
   function meHeadHTML(title) {
     const v = auth.viewer;
     if (!v) return `<h1>${title}</h1>`;
     const lead = [...state.list.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
     return `<div class="me" style="${tintVars(lead ? lead.color : "")}">
       <div class="me-banner">${v.bannerImage ? img(v.bannerImage, "") : lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : ""}</div>
-      <div class="me-row">${avatarImg(v)}<div><h1>${title}</h1><p class="me-name">${esc(v.name)} sur AniList</p></div></div>
+      <div class="me-row"><div class="me-av">${avatarImg(v)}<a class="me-av-edit" href="${AL_SETTINGS}" target="_blank" rel="noopener" data-act="avatar-edit" title="Changer ma photo de profil" aria-label="Changer ma photo de profil sur AniList">${ICON_PEN}</a></div><div><h1>${title}</h1><p class="me-name">${esc(v.name)} sur AniList</p></div></div>
     </div>`;
   }
   function skelCards(n, grid) {
@@ -3849,6 +3879,7 @@ footer a { color: var(--haze); }
       case "spoil": el.classList.add("on"); el.removeAttribute("role"); el.removeAttribute("tabindex"); break;
       case "bilan-period": state.bilanP = el.dataset.p; render(); break;
       case "bilan-share": shareBilan(el); break;
+      case "avatar-edit": avatarCheckAt = Date.now(); if (acctOpen) { acctOpen = false; setTimeout(() => { $("#acct").innerHTML = acctHTML(); }, 0); } break;
       case "reopen": openAnime(el.dataset.id); break;
       case "add": ev.stopPropagation(); quickAdd(el.dataset.id, el); break;
       case "close": closeDrawer(); break;
@@ -4076,7 +4107,8 @@ footer a { color: var(--haze); }
   setInterval(() => { if (!document.hidden) pollNotifs(); }, 90000);
   setInterval(() => refreshFriends(false), 60000);
   setInterval(() => { if (state.view === "amis" && !feedLoading) paintFeedState(); }, 30000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollNotifs(); refreshFriends(false); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollNotifs(); refreshFriends(false); refreshViewer(); } });
+  window.addEventListener("focus", () => refreshViewer());
   if (pendingToast) toast(pendingToast);
 })();
 </script>
