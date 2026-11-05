@@ -481,6 +481,9 @@ footer a { color: var(--haze); }
 .me-banner img { width: 100%; height: 100%; object-fit: cover; }
 .me-banner img.soft { filter: blur(2px) saturate(120%); opacity: .55; transform: scale(1.04); }
 .me-banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(20, 17, 48, .75), transparent 65%); }
+.me-acts { position: absolute; z-index: 2; top: 12px; right: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.me-acts .btn:not(.btn-main) { background: rgba(20, 17, 48, .82); border-color: transparent; }
+.me-acts .btn:not(.btn-main):hover { border-color: var(--haze); }
 .me-bn-edit { position: absolute; z-index: 2; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 0; border-radius: 999px; background: rgba(20, 17, 48, .8); color: var(--paper); font-weight: 700; font-size: 13px; }
 .me-bn-edit:hover, .me-bn-edit[aria-expanded="true"] { background: var(--sakura); color: var(--sakura-ink); }
 .me-bn-edit svg { width: 16px; height: 16px; flex: none; }
@@ -861,7 +864,7 @@ footer a { color: var(--haze); }
   const Q_ROOT = `query($id:Int){Media(id:$id,type:ANIME){${PART} bannerImage duration averageScore genres description(asHtml:false) ${STUDIOS} siteUrl}}`;
   const Q_PARTS = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){${PART}}}}`;
   const Q_VIEWER = `query{Viewer{id name avatar{large medium} bannerImage siteUrl unreadNotificationCount options{airingNotifications}}}`;
-  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
+  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} bannerImage siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
   const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
   const K_FAVS = "animatheque.preferes.v1";
   // Copies of what AniList sent last time, shown straight away on the next visit while the fresh version loads.
@@ -2133,11 +2136,13 @@ footer a { color: var(--haze); }
   const ICON_IMAGE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
   /* The banner on "Ma liste": the anime you chose (kept in this browser), otherwise your AniList banner,
      otherwise the anime you updated last, softened. */
-  function autoBanner(v) {
-    const lead = [...state.list.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
-    if (v.bannerImage) return { html: `<img src="${esc(v.bannerImage)}" alt="" decoding="async">`, color: lead ? lead.color : "" };
+  // Someone's AniList banner, otherwise the anime they updated last (softened). Used for you and for your friends.
+  function profileBanner(u, list) {
+    const lead = [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    if (u && u.bannerImage) return { html: `<img src="${esc(u.bannerImage)}" alt="" decoding="async">`, color: lead ? lead.color : "" };
     return { html: lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : "", color: lead ? lead.color : "" };
   }
+  function autoBanner(v) { return profileBanner(v, state.list.values()); }
   function bannerHTML(e) { return e.banner ? `<img src="${esc(e.banner)}" alt="" loading="lazy" decoding="async">` : img(e.cover, "", "soft"); }
   function bannerPickHTML(v) {
     const list = [...state.list.values()].filter((e) => e.banner || e.cover)
@@ -2266,11 +2271,14 @@ footer a { color: var(--haze); }
     const isMe = auth.viewer && u.id === auth.viewer.id;
     const { counts, eps, avg } = stats(all);
     const common = all.filter((e) => entryOf(e.id)).length;
+    const bn = profileBanner(u, all);
     const sum = `${esc(u.name)} suit <b>${plural(all.length, "anime", "animes")}</b> et a vu <b>${plural(eps, "épisode", "épisodes")}</b>${avg ? `, avec une note moyenne de <b>${nf1.format(avg)}/10</b>` : ""}.${!isMe && state.list.size ? ` Vous avez <b>${plural(common, "anime", "animes")}</b> en commun.` : ""}`;
     return `<div class="wrap">
       <header class="lh">
-        <div class="prof">${avatarImg(u)}<div><h1>${esc(u.name)}</h1></div>
-          <div class="prof-acts">${auth.viewer && !isMe && u.id ? followBtn(u) : ""}${u.siteUrl ? `<a class="btn btn-sm btn-ghost" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Profil AniList</a>` : ""}</div></div>
+        <div class="me" style="${tintVars(bn.color)}">
+          <div class="me-banner">${bn.html}<div class="me-acts">${auth.viewer && !isMe && u.id ? followBtn(u) : ""}${u.siteUrl ? `<a class="btn btn-sm" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Profil AniList</a>` : ""}</div></div>
+          <div class="me-row"><div class="me-av">${avatarImg(u)}</div><div><h1>${esc(u.name)}</h1><p class="me-name">Sa liste sur AniList</p></div></div>
+        </div>
         <p class="lh-sum">${sum}</p>
         ${all.length ? distHTML(counts) : ""}
         ${all.length ? `<div class="bar-tools">${filtersHTML(all, counts, state.ffilter, "ffilter")}${!isMe ? `<p class="legend" aria-hidden="true"><span><i class="me"></i>Ta note</span><span><i class="fr"></i>Celle de ${esc(u.name)}</span></p>` : ""}</div>` : ""}
