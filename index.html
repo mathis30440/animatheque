@@ -476,11 +476,27 @@ footer a { color: var(--haze); }
 .res-recent button:hover { border-color: var(--haze); }
 
 /* ---------- my list: profile header and "continue watching" ---------- */
-.me { display: grid; }
+.me { display: grid; grid-template-columns: minmax(0, 1fr); }
 .me-banner { position: relative; height: 150px; border-radius: 22px; overflow: hidden; background: linear-gradient(120deg, color-mix(in srgb, var(--tint) 55%, var(--night-2)), var(--night-3)); }
 .me-banner img { width: 100%; height: 100%; object-fit: cover; }
 .me-banner img.soft { filter: blur(2px) saturate(120%); opacity: .55; transform: scale(1.04); }
 .me-banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(20, 17, 48, .75), transparent 65%); }
+.me-bn-edit { position: absolute; z-index: 2; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 0; border-radius: 999px; background: rgba(20, 17, 48, .8); color: var(--paper); font-weight: 700; font-size: 13px; }
+.me-bn-edit:hover, .me-bn-edit[aria-expanded="true"] { background: var(--sakura); color: var(--sakura-ink); }
+.me-bn-edit svg { width: 16px; height: 16px; flex: none; }
+.bn-pick { margin-top: 18px; padding: 16px 18px 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--night-2); }
+.bn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.bn-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.15; }
+.bn-head p { margin: 2px 0 0; font-size: 13px; color: var(--haze); }
+.strip.bn-strip { grid-auto-columns: 240px; gap: 12px; padding: 4px 4px 12px; }
+.bn-tile { --tint: var(--mist); display: grid; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: var(--paper); text-align: left; }
+.bn-img { position: relative; display: block; aspect-ratio: 16 / 5; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--tint) 45%, var(--night-3)); box-shadow: 0 0 0 1px var(--line); }
+.bn-img img { width: 100%; height: 100%; object-fit: cover; }
+.bn-img img.soft { filter: blur(1.5px) saturate(120%); opacity: .6; }
+.bn-tile:hover .bn-img { box-shadow: 0 0 0 2px var(--haze); }
+.bn-tile[aria-pressed="true"] .bn-img { box-shadow: 0 0 0 3px var(--sakura); }
+.bn-t { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bn-tile[aria-pressed="true"] .bn-t { color: var(--sakura); }
 .me-row { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 18px; margin: -48px 0 0 22px; }
 .me-row .avatar { width: 96px; height: 96px; box-shadow: 0 0 0 4px var(--night), 0 14px 30px -12px rgba(0,0,0,.8); }
 .me-row h1 { margin: 0; }
@@ -576,6 +592,9 @@ footer a { color: var(--haze); }
   .me-row { margin: -40px 0 0 14px; gap: 14px; }
   .me-row .avatar { width: 80px; height: 80px; }
   .cp-row { grid-template-columns: 1fr; }
+  .strip.bn-strip { grid-auto-columns: 200px; }
+  .me-bn-edit span { display: none; }
+  .me-bn-edit { padding: 8px; }
   .me-av-edit { width: 28px; height: 28px; right: -3px; bottom: 0; }
   .me-av-edit svg { width: 14px; height: 14px; }
   .cw-hit { grid-template-columns: 66px minmax(0, 1fr); gap: 14px; }
@@ -2111,13 +2130,36 @@ footer a { color: var(--haze); }
   // AniList doesn't let other sites send a picture: the photo and the banner are changed on its settings page.
   const AL_SETTINGS = "https://anilist.co/settings";
   const ICON_PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="2.2"/></svg>';
+  const ICON_IMAGE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  /* The banner on "Ma liste": the anime you chose (kept in this browser), otherwise your AniList banner,
+     otherwise the anime you updated last, softened. */
+  function autoBanner(v) {
+    const lead = [...state.list.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    if (v.bannerImage) return { html: `<img src="${esc(v.bannerImage)}" alt="" decoding="async">`, color: lead ? lead.color : "" };
+    return { html: lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : "", color: lead ? lead.color : "" };
+  }
+  function bannerHTML(e) { return e.banner ? `<img src="${esc(e.banner)}" alt="" loading="lazy" decoding="async">` : img(e.cover, "", "soft"); }
+  function bannerPickHTML(v) {
+    const list = [...state.list.values()].filter((e) => e.banner || e.cover)
+      .sort((a, b) => (!!b.banner - !!a.banner) || titles(a.en, a.ro).main.localeCompare(titles(b.en, b.ro).main, "fr"));
+    const auto = autoBanner(v), cur = prefs.banner && state.list.has(prefs.banner) ? prefs.banner : "";
+    return `<section class="bn-pick" aria-labelledby="h-bn">
+      <div class="bn-head"><div><h2 id="h-bn">Choisis ta bannière</h2><p>Parmi les animes de ta liste. Ton choix est gardé sur cet appareil.</p></div><button class="btn btn-sm" data-act="banner-pick">Fermer</button></div>
+      <div class="strip bn-strip" id="row-bn">
+        <button class="bn-tile" data-act="banner-set" data-id="" aria-pressed="${!cur}" style="${tintVars(auto.color)}"><span class="bn-img">${auto.html}</span><span class="bn-t">Automatique</span></button>
+        ${list.map((e) => `<button class="bn-tile" data-act="banner-set" data-id="${e.id}" aria-pressed="${cur === e.id}" style="${tintVars(e.color)}"><span class="bn-img">${bannerHTML(e)}</span><span class="bn-t">${esc(titles(e.en, e.ro).main)}</span></button>`).join("")}
+      </div>
+    </section>`;
+  }
   function meHeadHTML(title) {
     const v = auth.viewer;
     if (!v) return `<h1>${title}</h1>`;
-    const lead = [...state.list.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
-    return `<div class="me" style="${tintVars(lead ? lead.color : "")}">
-      <div class="me-banner">${v.bannerImage ? img(v.bannerImage, "") : lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : ""}</div>
+    const pick = prefs.banner ? state.list.get(prefs.banner) : null;
+    const b = pick ? { html: bannerHTML(pick), color: pick.color } : autoBanner(v);
+    return `<div class="me" style="${tintVars(b.color)}">
+      <div class="me-banner">${b.html}<button class="me-bn-edit" data-act="banner-pick" aria-expanded="${!!state.bnPick}" title="Changer la bannière">${ICON_IMAGE}<span>Bannière</span></button></div>
       <div class="me-row"><div class="me-av">${avatarImg(v)}<a class="me-av-edit" href="${AL_SETTINGS}" target="_blank" rel="noopener" data-act="avatar-edit" title="Changer ma photo de profil" aria-label="Changer ma photo de profil sur AniList">${ICON_PEN}</a></div><div><h1>${title}</h1><p class="me-name">${esc(v.name)} sur AniList</p></div></div>
+      ${state.bnPick ? bannerPickHTML(v) : ""}
     </div>`;
   }
   function skelCards(n, grid) {
@@ -4054,6 +4096,8 @@ footer a { color: var(--haze); }
       case "spoil": el.classList.add("on"); el.removeAttribute("role"); el.removeAttribute("tabindex"); break;
       case "bilan-period": state.bilanP = el.dataset.p; render(); break;
       case "bilan-share": shareBilan(el); break;
+      case "banner-pick": state.bnPick = !state.bnPick; render(); break;
+      case "banner-set": if (el.dataset.id) prefs.banner = el.dataset.id; else delete prefs.banner; lsSet(K_PREF, prefs); render(); break;
       case "avatar-edit": avatarCheckAt = Date.now(); if (acctOpen) { acctOpen = false; setTimeout(() => { $("#acct").innerHTML = acctHTML(); }, 0); } break;
       case "reopen": openAnime(el.dataset.id); break;
       case "add": ev.stopPropagation(); quickAdd(el.dataset.id, el); break;
