@@ -2169,6 +2169,15 @@ footer a { color: var(--haze); }
     }
     return prev;
   }
+  function anyPrequelMap(medias) {
+    const prev = new Map();
+    for (const m of medias) for (const e of (m && m.relations && m.relations.edges) || []) {
+      if (!e.node || e.node.type !== "ANIME") continue;
+      if (e.relationType === "PREQUEL" && !prev.has(m.id)) prev.set(m.id, e.node.id);
+      if (e.relationType === "SEQUEL" && !prev.has(e.node.id)) prev.set(e.node.id, m.id);
+    }
+    return prev;
+  }
   function franchiseKey(m, prev) {
     let id = m.id;
     const seen = new Set([id]);
@@ -3298,7 +3307,7 @@ footer a { color: var(--haze); }
   /* AniList's search ignores very short words: with two or three letters ("be", "fr") it finds next to nothing.
      So the site keeps a small index of the 500 most popular anime (refreshed every week) and matches the start of
      their titles itself, instantly. */
-  const K_POP = "animatheque.populaires.v1";
+  const K_POP = "animatheque.populaires.v2";
   const Q_POP = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage} media(type:ANIME,isAdult:false,sort:POPULARITY_DESC,format_in:[TV,MOVIE,ONA,OVA,TV_SHORT]){id title{romaji english} synonyms coverImage{large color} format seasonYear episodes relations{edges{relationType(version:2) node{id type format}}}}}}`;
   let POP = (() => { const c = lsGet(K_POP, null); return c && Array.isArray(c.l) ? c : { at: 0, l: [], pages: 0 }; })();
   let popBusy = false, popFailAt = 0;
@@ -3314,7 +3323,7 @@ footer a { color: var(--haze); }
       for (let page = POP.pages + 1; page <= 10; page++) {
         const d = await gql(Q_POP, { page }, { bg: !(urgent && page === 1) });
         for (const m of (d && d.Page && d.Page.media) || []) {
-          if (!m || seen.has(m.id) || seriesPrequel(m) || isSpinoff(m)) continue;
+          if (!m || seen.has(m.id) || isSpinoff(m) || (m.relations?.edges || []).some((e) => e.relationType === "PREQUEL" && e.node && e.node.type === "ANIME")) continue;
           seen.add(m.id);
           l.push({ id: m.id, en: m.title?.english || "", ro: m.title?.romaji || "", syn: (m.synonyms || []).filter((x) => /^[\x20-\x7eÀ-ſ]+$/.test(x)).slice(0, 5),
             c: m.coverImage?.large || "", f: m.format, y: m.seasonYear || 0, e: m.episodes || 0 });
@@ -3330,8 +3339,13 @@ footer a { color: var(--haze); }
   function popMatches(query, limit = 8) {
     const k = fold(query).trim();
     if (!k || !POP.l.length) return [];
-    const hits = POP.l.filter((x) => [x.en, x.ro].some((n) => n && fold(n).startsWith(k)));
-    return hits.slice(0, limit).map((x) => {
+    const main = [], alt = [];
+    for (const x of POP.l) {
+      const t = titles(x.en, x.ro);
+      if (fold(t.main).startsWith(k)) main.push(x);
+      else if ([x.en, x.ro].some((n) => n && fold(n).startsWith(k))) alt.push(x);
+    }
+    return [...main, ...alt].slice(0, limit).map((x) => {
       const t = titles(x.en, x.ro);
       return { id: x.id, title: t.main, alt: t.alt, thumb: x.c, pop: true, sub: [[FORMAT[x.f], x.y || null].filter(Boolean).join(", "), x.e ? plural(x.e, "ép.", "ép.") : null].filter(Boolean).join(" · ") };
     });
@@ -3352,12 +3366,28 @@ footer a { color: var(--haze); }
     const take = (arr, max) => { for (const it of arr) { if (items.length >= max) break; const id = Number(it.id); if (seen.has(id)) continue; seen.add(id); items.push(it); } };
     // Only titles that START with what you typed: the most popular first, then the less known ones AniList finds.
     // Anime already in your list are not pushed up: they just show their status instead of "Ajouter".
-    take(popMatches(resState.query, 10), 10);
-    take(net.filter(startsWith), 10);
+    const pop = popMatches(resState.query, 10);
+    const keys = new Set(pop.map((x) => Number(x.id)));
+    // Seasons and movies of the same anime are one line (the fiche lists them); a match on any of them shows the anime.
+    const prev = anyPrequelMap(net.map((it) => it.raw).filter(Boolean));
+    const fams = [], famOf = new Map();
+    for (const it of net) {
+      const key = it.raw ? franchiseKey(it.raw, prev) : Number(it.id);
+      if (keys.has(key)) continue;
+      let g = famOf.get(key);
+      if (!g) { g = { key, items: [] }; famOf.set(key, g); fams.push(g); }
+      g.items.push(it);
+    }
+    const repOf = (g) => g.items.find((o) => Number(o.id) === g.key) || g.items[0];
+    const netOne = fams.map(repOf);
+    const netStart = fams.filter((g) => g.items.some(startsWith)).map(repOf);
+    const mainFirst = (arr) => [...arr.filter((it) => fold(it.title).startsWith(k)), ...arr.filter((it) => !fold(it.title).startsWith(k))];
+    take(pop, 10);
+    take(mainFirst(netStart), 10);
     // Nothing starts with it at all: as a last resort, say so and show what AniList found that contains it.
     let head = "";
     if (!items.length && resState.status === "done" && net.length) {
-      take(net, 8);
+      take(netOne, 8);
       head = `<li class="res-msg">Aucun titre ne commence par « ${esc(resState.query)} ». Ceux qui le contiennent :</li>`;
     }
     let tail = "";
