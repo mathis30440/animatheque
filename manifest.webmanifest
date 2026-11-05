@@ -1,0 +1,17 @@
+{
+  "name": "Animathèque",
+  "short_name": "Animathèque",
+  "description": "Ma liste d'animes : ce que je regarde, mes notes, mes amis.",
+  "lang": "fr",
+  "start_url": "./#liste",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#141130",
+  "theme_color": "#141130",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
