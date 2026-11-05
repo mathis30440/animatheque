@@ -63,7 +63,7 @@ button { cursor: pointer; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* ---------- header ---------- */
-.top { position: sticky; top: 0; z-index: 30; padding-top: env(safe-area-inset-top, 0px); background: rgba(20, 17, 48, .86); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 30; padding-top: env(safe-area-inset-top, 0px); background: rgba(20, 17, 48, .97); border-bottom: 1px solid var(--line); }
 .top-in { display: flex; align-items: center; gap: 12px 28px; padding-block: 12px; flex-wrap: wrap; }
 .brand { font-family: var(--display); font-size: 23px; line-height: 1; color: var(--paper); text-decoration: none; letter-spacing: -.01em; display: inline-flex; align-items: center; gap: 10px; }
 .brand i { width: 12px; height: 12px; border-radius: 3px; background: var(--sakura); transform: rotate(45deg); flex: none; }
@@ -152,7 +152,7 @@ main { flex: 1; }
 .pc-s { font-size: 13px; color: var(--haze); margin-top: -6px; }
 .pc-over { position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 2 / 3; pointer-events: none; }
 .pc-over > * { pointer-events: auto; }
-.pc-tag { position: absolute; left: 8px; top: 8px; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(20, 17, 48, .82); color: var(--paper); backdrop-filter: blur(6px); }
+.pc-tag { position: absolute; left: 8px; top: 8px; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(20, 17, 48, .9); color: var(--paper); }
 .pc-state { position: absolute; left: 8px; bottom: 8px; }
 .pc-add { position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--paper); color: var(--night); font-size: 22px; line-height: 1; display: grid; place-items: center; box-shadow: 0 6px 18px -6px rgba(0,0,0,.6); font-weight: 700; }
 .pc-add:hover { background: var(--sakura); }
@@ -204,12 +204,12 @@ main { flex: 1; }
 
 /* ---------- drawer (fiche) ---------- */
 .dw { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
-.dw-scrim { position: absolute; inset: 0; background: rgba(8, 6, 24, .62); backdrop-filter: blur(3px); }
+.dw-scrim { position: absolute; inset: 0; background: rgba(8, 6, 24, .74); }
 .drawer { position: relative; width: min(700px, 100%); height: 100%; overflow-y: auto; overscroll-behavior: contain;
   background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 30%, var(--night-2)) 0, var(--night-2) 460px); box-shadow: -30px 0 80px -30px rgba(0,0,0,.8);
   padding-bottom: env(safe-area-inset-bottom, 0px); animation: slidein .26s cubic-bezier(.2, .8, .2, 1); }
 @keyframes slidein { from { transform: translateX(40px); opacity: 0; } }
-.dw-close { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); z-index: 3; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(20, 17, 48, .7); backdrop-filter: blur(6px); color: var(--paper); display: grid; place-items: center; }
+.dw-close { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); z-index: 3; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(20, 17, 48, .86); color: var(--paper); display: grid; place-items: center; }
 .dw-close svg { width: 16px; height: 16px; }
 .dw-banner { height: 210px; position: relative; overflow: hidden; background: color-mix(in srgb, var(--tint) 45%, var(--night)); }
 .dw-banner img { width: 100%; height: 100%; object-fit: cover; }
@@ -516,7 +516,6 @@ footer a { color: var(--haze); }
 
 @media (max-width: 760px) {
   body { padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
-  .top { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(20, 17, 48, .97); }
   .top-in { flex-wrap: nowrap; gap: 10px; padding-block: 10px; }
   .top-acts { margin-left: auto; gap: 6px; }
   .icon-btn { width: 40px; height: 40px; }
@@ -662,7 +661,7 @@ footer a { color: var(--haze); }
 .act-rep:hover { color: var(--paper); }
 .act-rep svg { width: 16px; height: 16px; }
 .th { position: fixed; inset: 0; z-index: 62; display: grid; place-items: center; padding: 24px; }
-.th-scrim { position: absolute; inset: 0; background: rgba(8, 6, 24, .66); backdrop-filter: blur(3px); }
+.th-scrim { position: absolute; inset: 0; background: rgba(8, 6, 24, .76); }
 .thread { position: relative; width: min(620px, 100%); max-height: min(86vh, 860px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-radius: 22px; background: var(--night-2); border: 1px solid var(--line); box-shadow: 0 40px 100px -30px rgba(0,0,0,.9); overflow: hidden; animation: dropin .18s ease-out; }
 .thread:focus { outline: none; }
 .th-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--line); }
@@ -822,6 +821,9 @@ footer a { color: var(--haze); }
   const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
   const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
   const K_FAVS = "animatheque.preferes.v1";
+  // Copies of what AniList sent last time, shown straight away on the next visit while the fresh version loads.
+  const K_ME = "animatheque.moi.v1", K_FLISTS = "animatheque.listes-amis.v1", K_FOLLOW = "animatheque.amis.v1";
+  for (const k of ["animatheque.populaires.v1", "animatheque.populaires.v2"]) { try { localStorage.removeItem(k); } catch (_) {} }
   const M_SAVE = `mutation($mediaId:Int,$status:MediaListStatus,$progress:Int,$scoreRaw:Int,$notes:String,$completedAt:FuzzyDateInput){SaveMediaListEntry(mediaId:$mediaId,status:$status,progress:$progress,scoreRaw:$scoreRaw,notes:$notes,completedAt:$completedAt){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}}`;
   const M_DELETE = `mutation($id:Int){DeleteMediaListEntry(id:$id){deleted}}`;
   const Q_USERS = `query($q:String){Page(perPage:10){users(search:$q){id name avatar{large medium} isFollowing isFollower}}}`;
@@ -963,7 +965,8 @@ footer a { color: var(--haze); }
   /* AniList allows about 30 requests a minute right now. Requests wait in two lines: what you just typed or clicked goes
      first, background refreshes go after and never take the last slots of the minute. When AniList is busy or flaky,
      requests are retried quietly instead of failing straight away. */
-  const BUDGET = 27, BG_BUDGET = 20, GAP = 300;
+  let BUDGET = 27, BG_BUDGET = 20;
+  const GAP = 300;
   const LINE_HI = [], LINE_BG = [];
   let lastAt = 0, blockedUntil = 0, stamps = [], pumping = false, wakePump = null;
   function gql(query, variables, opts = {}) {
@@ -1013,6 +1016,7 @@ footer a { color: var(--haze); }
     try { res = await fetch(API, { method: "POST", headers, body: JSON.stringify({ query: job.query, variables: job.variables }), signal: ctl ? ctl.signal : undefined }); }
     catch (_) { clearTimeout(timer); return retry(job, navigator.onLine === false ? "offline" : "network"); }
     clearTimeout(timer);
+    syncBudget(res);
     if (res.status === 429) {
       const ra = Number(res.headers.get("Retry-After"));
       blockedUntil = Math.max(blockedUntil, Date.now() + (ra > 0 ? Math.min(ra, 90) * 1000 : 60000) + 300);
@@ -1025,6 +1029,19 @@ footer a { color: var(--haze); }
     if (res.status >= 500 || (res.ok && !json)) return retry(job, "api");
     if (!res.ok || !json || (json.errors && !json.data)) return job.reject(new ApiError(/private/i.test(msg) ? "private" : res.status === 404 ? "missing" : "api"));
     job.resolve(json.data);
+  }
+  /* AniList tells how many requests are left this minute for this connection. Another tab or the phone on the same
+     Wi-Fi spends the same allowance, so line up with it instead of running into a one-minute block. */
+  function syncBudget(res) {
+    const lim = Number(res.headers.get("X-RateLimit-Limit")), raw = res.headers.get("X-RateLimit-Remaining");
+    if (!(lim > 0) || raw === null || raw === "") return;
+    const rem = Number(raw);
+    if (!(rem >= 0)) return;
+    BUDGET = Math.max(5, lim - 3); BG_BUDGET = Math.max(3, Math.round(lim * 0.67));
+    const now = Date.now();
+    stamps = stamps.filter((t) => now - t < 60000);
+    for (let used = lim - rem; stamps.length < used;) stamps.unshift(now - 2000);
+    if (rem <= 1) blockedUntil = Math.max(blockedUntil, now + 20000);
   }
   function retry(job, kind) {
     job.tries++;
@@ -1410,7 +1427,7 @@ footer a { color: var(--haze); }
   function toLocal() {
     for (const s of syncs.values()) clearTimeout(s.timer);
     syncs.clear();
-    lsDel(K_TOKEN);
+    lsDel(K_TOKEN); lsDel(K_ME); lsDel(K_FLISTS); lsDel(K_FOLLOW); meRaw = "";
     auth.token = null; auth.viewer = null;
     state.mode = "local"; state.list = localList; state.alLoaded = false; state.alErr = null;
     state.friends = null; state.friend = null; FRON.clear(); FRIENDS.clear();
@@ -1421,28 +1438,51 @@ footer a { color: var(--haze); }
   }
   function logout() { toLocal(); toast("Tu es déconnecté. Ta liste reste sur ton compte AniList."); if (state.view === "amis" || state.view === "ami") location.hash = "#liste"; render(); }
   function sessionExpired() { if (!auth.token) return; toLocal(); toast("Ta session AniList a expiré. Reconnecte-toi pour retrouver ta liste.", "Se connecter", login); render(); }
+  const tokTag = () => (auth.token || "").slice(-24);
+  let meRaw = "";
+  function hydrateMe() {
+    if (!auth.token) return;
+    const c = lsGet(K_ME, null);
+    if (!c || c.tok !== tokTag() || !c.viewer || !c.col) return;
+    try {
+      const next = new Map();
+      for (const e of buildGroups(c.col, true)) next.set(e.id, e);
+      auth.viewer = c.viewer;
+      state.list = next; state.favs = favIds(c.col.user); state.alLoaded = true;
+      meRaw = JSON.stringify(c.col);
+      const f = lsGet(K_FOLLOW, null);
+      if (f && f.tok === tokTag() && Array.isArray(f.list)) { state.friends = f.list; state.friendsStale = true; }
+    } catch (_) { lsDel(K_ME); }
+  }
   async function loadAccount() {
     try {
       const d = await gql(Q_VIEWER, {});
+      const same = auth.viewer && auth.viewer.id === d.Viewer.id;
       auth.viewer = d.Viewer;
       notif.airing = d.Viewer.options ? d.Viewer.options.airingNotifications : null;
       notif.at = Date.now();
       setUnread(d.Viewer.unreadNotificationCount || 0, false);
-      render();
+      if (!same) render(); else $("#acct").innerHTML = acctHTML();
       await loadMyList();
     } catch (err) { if (err.kind !== "auth") { state.alErr = err; render(); } }
   }
-  async function loadMyList() {
+  async function loadMyList(force) {
     if (state.mode !== "anilist" || !auth.viewer) return;
+    const hadErr = !!state.alErr;
     state.alErr = null;
     try {
       const d = await gql(Q_COLLECTION, { userId: auth.viewer.id });
+      const raw = JSON.stringify(d.MediaListCollection);
+      // Same as the copy already on screen: nothing to redraw.
+      if (raw === meRaw && state.alLoaded && !hadErr && !force) { lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); return; }
       const next = new Map();
       for (const e of buildGroups(d.MediaListCollection, true)) next.set(e.id, e);
       state.favs = favIds(d.MediaListCollection.user);
       for (const [id, e] of state.list) if (syncs.has(id)) next.set(id, e);
       state.list = next;
       state.alLoaded = true;
+      meRaw = raw;
+      if (!lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection })) { lsDel(K_FLISTS); lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); }
     } catch (err) { if (err.kind === "auth") return; state.alErr = err; }
     // The whole page depends on the list (hidden anime, recommendations): redraw it once.
     render();
@@ -1474,8 +1514,10 @@ footer a { color: var(--haze); }
   /* ================= friends ================= */
   let friendsLoading = false;
   async function loadFriends(force) {
-    if (!auth.viewer || friendsLoading || (state.friends && !force)) return;
+    if (!auth.viewer || friendsLoading || (state.friends && !force && !state.friendsStale)) return;
     friendsLoading = true; state.friendsErr = null;
+    const sig = (l) => JSON.stringify((l || []).map((u) => [u.id, u.name, u.avatar && (u.avatar.medium || u.avatar.large)]));
+    const before = state.friends ? sig(state.friends) : "";
     try {
       const out = [];
       for (let page = 1; page <= 4; page++) {
@@ -1484,9 +1526,11 @@ footer a { color: var(--haze); }
         if (!d.Page.pageInfo?.hasNextPage) break;
       }
       state.friends = out.filter((u) => u.id !== auth.viewer.id);
-    } catch (err) { if (err.kind !== "auth") state.friendsErr = err; }
+      state.friendsStale = false;
+      lsSet(K_FOLLOW, { tok: tokTag(), list: state.friends });
+    } catch (err) { if (err.kind !== "auth" && !state.friends) state.friendsErr = err; state.friendsStale = false; }
     friendsLoading = false;
-    if (state.view === "amis" || state.view === "ami") render();
+    if ((state.view === "amis" || state.view === "ami") && (!state.friends || sig(state.friends) !== before || state.friendsErr)) render();
   }
   let userToken = 0, userTimer = null;
   async function searchUsers(query) {
@@ -1545,9 +1589,22 @@ footer a { color: var(--haze); }
     }
     return false;
   }
+  function savedFriend(key) {
+    const c = lsGet(K_FLISTS, {})[key];
+    if (!c || !c.col) return null;
+    try { return { at: c.at, raw: JSON.stringify(c.col), data: { name: c.col.user?.name || key, user: c.col.user, groups: buildGroups(c.col, false), favs: favIds(c.col.user) } }; }
+    catch (_) { return null; }
+  }
+  function saveFriend(key, col) {
+    const all = lsGet(K_FLISTS, {});
+    all[key] = { at: Date.now(), col };
+    for (const k of Object.keys(all).sort((a, b) => all[b].at - all[a].at).slice(6)) delete all[k];
+    if (!lsSet(K_FLISTS, all)) lsDel(K_FLISTS);
+  }
   async function loadFriend(name, quiet) {
     const key = name.toLowerCase();
-    const c = FRIENDS.get(key);
+    let c = FRIENDS.get(key);
+    if (!c && auth.viewer) { c = savedFriend(key); if (c) FRIENDS.set(key, c); }
     // Show what we have right away; reload it when it is more than 15 s old or the feed already shows newer news.
     if (c && !quiet) { state.friend = c.data; render(); if (Date.now() - c.at < 15e3 && !friendBehind(key, c.data)) return; quiet = true; }
     if (friendBusy.has(key)) return;
@@ -1557,8 +1614,14 @@ footer a { color: var(--haze); }
     try {
       const d = await gql(Q_COLLECTION, { userName: name }, { bg: !!quiet });
       const col = d.MediaListCollection;
-      data = { name: col.user?.name || name, user: col.user, groups: buildGroups(col, false), favs: favIds(col.user) };
-      FRIENDS.set(key, { at: Date.now(), data });
+      const raw = JSON.stringify(col);
+      const prev = FRIENDS.get(key);
+      if (prev && prev.raw === raw) { prev.at = Date.now(); data = prev.data; }
+      else {
+        data = { name: col.user?.name || name, user: col.user, groups: buildGroups(col, false), favs: favIds(col.user) };
+        FRIENDS.set(key, { at: Date.now(), raw, data });
+        saveFriend(key, col);
+      }
     } catch (err) { data = quiet && c ? c.data : { name, err }; }
     friendBusy.delete(key);
     // AniList can take a few seconds to show a change in someone's list: try again a little later (3 times at most).
@@ -1566,7 +1629,7 @@ footer a { color: var(--haze); }
       const n = friendRetry.get(key) || 0;
       if (n < 3) { friendRetry.set(key, n + 1); setTimeout(() => { if (state.view === "ami" && state.friend && String(state.friend.name).toLowerCase() === key) loadFriend(name, true); }, 15000); }
     } else friendRetry.delete(key);
-    if (state.view === "ami" && (!state.friend || state.friend.name.toLowerCase() === key)) { state.friend = data; render(); }
+    if (state.view === "ami" && (!state.friend || state.friend.name.toLowerCase() === key) && state.friend !== data) { state.friend = data; render(); }
   }
   async function loadFriendsOn(fr) {
     const box = $("#dwFriends");
@@ -1608,7 +1671,13 @@ footer a { color: var(--haze); }
   /* ================= rendering: cards ================= */
   const ICON_L = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICON_R = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  function img(src, alt, cls = "") { return src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ""} onerror="this.remove()">` : ""; }
+  // AniList serves every poster in two sizes: /cover/medium/ (230 px wide) and /cover/large/ (460 px).
+  const SIZES = "(max-width: 760px) 46vw, 220px";
+  function img(src, alt, cls = "") {
+    if (!src) return "";
+    const small = src.includes("/cover/large/") ? src.replace("/cover/large/", "/cover/medium/") : "";
+    return `<img src="${esc(src)}"${small ? ` srcset="${esc(small)} 230w, ${esc(src)} 460w" sizes="${SIZES}"` : ""} alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ""} onerror="this.remove()">`;
+  }
   function stChip(s) { return `<span class="st-chip" style="--sc:var(--s-${s})">${STATUS[s]}</span>`; }
 
   function overlayHTML(it) {
@@ -1724,12 +1793,18 @@ footer a { color: var(--haze); }
   let homeLoading = false;
   async function loadHome(force) {
     state.homeErr = null;
-    const cached = force ? null : (() => { try { const c = JSON.parse(sessionStorage.getItem(K_HOME)); return c && Date.now() - c.at < 30 * 60e3 ? c.data : null; } catch (_) { return null; } })();
-    if (cached) { state.home = cached; render(); return; }
+    const saved = force ? null : lsGet(K_HOME, null);
+    let quiet = false;
+    if (saved && saved.data) {
+      state.home = saved.data; render();
+      if (Date.now() - saved.at < 30 * 60e3) return;
+      quiet = true;
+    }
     const vars = currentSeason();
     let data = null;
-    try { data = await gql(homeQuery(Object.keys(HOME_PARTS)), vars); }
+    try { data = await gql(homeQuery(Object.keys(HOME_PARTS)), vars, { bg: quiet }); }
     catch (err) {
+      if (quiet) return;
       if (err.kind !== "api") { state.homeErr = err; render(); return; }
       // The combined request can be refused as too heavy: fetch each row on its own and keep whatever arrives.
       data = {};
@@ -1738,9 +1813,10 @@ footer a { color: var(--haze); }
       }
       if (!Object.keys(data).length) { state.homeErr = err; render(); return; }
     }
+    const changed = JSON.stringify(data) !== JSON.stringify(state.home);
     state.home = data;
-    try { sessionStorage.setItem(K_HOME, JSON.stringify({ at: Date.now(), data })); } catch (_) {}
-    render();
+    if (!lsSet(K_HOME, { at: Date.now(), data })) lsDel(K_HOME);
+    if (changed) render();
   }
   /* Découvrir hides what is already in the list, unless the person asks to see it. */
   function mineFilter() {
@@ -2135,7 +2211,7 @@ footer a { color: var(--haze); }
     feedLoading = true; feedTryAt = Date.now();
     if (!bg) state.feedErr = null;
     if (state.view === "amis") paintFeedState();
-    const old = state.feed;
+    const old = state.feed, oldItems = old ? JSON.stringify(old.items) : "";
     let page = more && old ? old.page : 0;
     const items = [];
     let hasMore = false;
@@ -2159,7 +2235,8 @@ footer a { color: var(--haze); }
       state.feedErr = null;
     } catch (err) { if (err.kind !== "auth" && !(bg && old)) state.feedErr = err; }
     feedLoading = false;
-    if (state.view === "amis") render();
+    // A background check that found nothing new only updates the "mis à jour" line.
+    if (state.view === "amis") { if (bg && !more && state.feed && JSON.stringify(state.feed.items) === oldItems && !state.feedErr) paintFeedState(); else render(); }
   }
   function paintFeedState() {
     const b = $('[data-act="feed-refresh"]');
@@ -2172,15 +2249,19 @@ footer a { color: var(--haze); }
     if (ufeedBusy.has(uid)) return;
     if (UFEED.has(uid) && UFEED.get(uid) && Date.now() - (UFEED_AT.get(uid) || 0) < 60000) return;
     ufeedBusy.add(uid);
+    let changed = true;
     if (!UFEED.has(uid)) UFEED.set(uid, null);
     try {
-      const d = await gql(Q_FEED_USER, { userId: uid }, { bg: !!bg }); UFEED.set(uid, (d.Page.activities || []).filter((a) => a && a.media && a.user)); UFEED_AT.set(uid, Date.now());
+      const d = await gql(Q_FEED_USER, { userId: uid }, { bg: !!bg });
+      const acts = (d.Page.activities || []).filter((a) => a && a.media && a.user);
+      changed = JSON.stringify(acts) !== JSON.stringify(UFEED.get(uid));
+      UFEED.set(uid, acts); UFEED_AT.set(uid, Date.now());
       const f = state.friend;
       if (state.view === "ami" && f && f.user && f.user.id === uid && friendBehind(f.name, f)) loadFriend(f.name, true);
     }
     catch (_) { if (!UFEED.get(uid)) UFEED.set(uid, []); UFEED_AT.set(uid, Date.now()); }
     ufeedBusy.delete(uid);
-    if (state.view === "ami") render();
+    if (state.view === "ami" && changed) render();
   }
   /* While you look at your friends, keep their news fresh. */
   function refreshFriends(force) {
@@ -3320,7 +3401,7 @@ footer a { color: var(--haze); }
     for (const [id, x] of Object.entries(scrolls)) { const s = document.getElementById(id); if (s) s.scrollLeft = x; }
     if (focusSel) { const el = $("#view " + focusSel); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch (_) {} } }
     if (state.view === "decouvrir" && !state.home && !state.homeErr && !homeLoading) { homeLoading = true; loadHome().finally(() => { homeLoading = false; }); }
-    if ((state.view === "amis" || state.view === "ami") && auth.viewer && !state.friends && !state.friendsErr) loadFriends();
+    if ((state.view === "amis" || state.view === "ami") && auth.viewer && (!state.friends || state.friendsStale) && !state.friendsErr && !friendsLoading) loadFriends();
     if (state.view === "amis") paintUsers();
     if (state.view === "amis" && auth.viewer && !state.feedErr && !feedLoading && (!state.feed || (Date.now() - state.feed.at > 45000 && Date.now() - feedTryAt > 45000))) loadFeed(false, !!state.feed);
     if (state.view === "ami" && state.friend && state.friend.user && state.friend.user.id && (!UFEED.get(state.friend.user.id) || Date.now() - (UFEED_AT.get(state.friend.user.id) || 0) > 60000)) loadUserFeed(state.friend.user.id, UFEED.has(state.friend.user.id));
@@ -3843,7 +3924,7 @@ footer a { color: var(--haze); }
       case "acct": acctOpen = !acctOpen; $("#acct").innerHTML = acctHTML(); break;
       case "import-local": importLocal(); break;
       case "skip-import": lsSet(K_IMPORT, true); render(); break;
-      case "reload-list": if (!auth.viewer) loadAccount(); else { state.alErr = null; loadMyList(); } toast("Mise à jour depuis AniList…"); break;
+      case "reload-list": if (!auth.viewer) loadAccount(); else { state.alErr = null; loadMyList(true); } toast("Mise à jour depuis AniList…"); break;
       case "reload-friends": state.friendsErr = null; loadFriends(true); render(); break;
       case "follow": toggleFollow(el.dataset.uid, el); break;
       case "weekmode": state.weekMode = el.dataset.m; render(); break;
@@ -3984,8 +4065,9 @@ footer a { color: var(--haze); }
       }
     }
     const go = () => { closeDrawer(); closeThread(); closeNotifs(); closeSearch(); acctOpen = false; route(); window.scrollTo(0, 0); };
-    if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) document.startViewTransition(go); else go();
+    go();
   });
+  hydrateMe();
   route();
   startHero();
   setTimeout(() => loadPopular(false), 8000);
