@@ -365,6 +365,23 @@ textarea:focus, .prog select:focus, .prog input:focus { outline: none; border-co
 .act .m { display: inline; background: none; border: 0; padding: 0; color: var(--paper); font-weight: 700; text-align: left; text-decoration: underline; text-decoration-color: var(--mist); text-underline-offset: 3px; }
 .act .m:hover { text-decoration-color: var(--paper); }
 .act time { font-size: 12.5px; color: var(--dim); }
+/* A friend's latest activity, next to your compatibility */
+.cp-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.cp-row > .compat { height: 100%; box-sizing: border-box; }
+.recent { border: 1px solid var(--line); background: var(--night-2); border-radius: 20px; padding: 18px 20px; min-width: 0; }
+.recent h2 { margin: 0 0 14px; font-family: var(--display); font-weight: 400; font-size: 21px; line-height: 1.1; }
+.recent ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ract { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; }
+.r-cov { display: block; width: 36px; height: 51px; padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: var(--mist); box-shadow: 0 0 0 1px var(--line); }
+.r-cov img { width: 100%; height: 100%; object-fit: cover; }
+.ract p { margin: 0; font-size: 14px; line-height: 1.35; color: var(--haze); overflow-wrap: anywhere; }
+.ract .m { display: inline; background: none; border: 0; padding: 0; color: var(--paper); font-weight: 700; text-align: left; }
+.ract .m:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ract time { font-size: 12.5px; color: var(--dim); }
+.ract .act-meta { margin-top: 2px; }
+.recent-more { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--haze); }
+.recent-more:hover { color: var(--paper); }
+.recent .sk { height: 51px; border-radius: 8px; }
 .act-cover { width: 44px; height: 62px; padding: 0; border: 0; border-radius: 7px; overflow: hidden; background: var(--mist); }
 .act-cover img { width: 100%; height: 100%; object-fit: cover; }
 .tabs .sm { display: none; }
@@ -558,6 +575,7 @@ footer a { color: var(--haze); }
   .me-banner { height: 120px; border-radius: 18px; }
   .me-row { margin: -40px 0 0 14px; gap: 14px; }
   .me-row .avatar { width: 80px; height: 80px; }
+  .cp-row { grid-template-columns: 1fr; }
   .me-av-edit { width: 28px; height: 28px; right: -3px; bottom: 0; }
   .me-av-edit svg { width: 14px; height: 14px; }
   .cw-hit { grid-template-columns: 66px minmax(0, 1fr); gap: 14px; }
@@ -2216,9 +2234,8 @@ footer a { color: var(--haze); }
         ${all.length ? `<div class="bar-tools">${filtersHTML(all, counts, state.ffilter, "ffilter")}${!isMe ? `<p class="legend" aria-hidden="true"><span><i class="me"></i>Ta note</span><span><i class="fr"></i>Celle de ${esc(u.name)}</span></p>` : ""}</div>` : ""}
       </header>
       <div class="page">
-        ${!isMe && all.length && state.list.size ? compatHTML(f, u.name) : ""}
+        ${!isMe && all.length && state.list.size ? compatHTML(f, u.name, u.id ? recentHTML(acts, u) : "") : u.id ? recentHTML(acts, u) : ""}
         ${!isMe ? favSectionHTML(favEntries(all, f.favs || []), "Ses préférés", `Les coups de cœur de ${esc(u.name)}.`, "hisfavs", { readonly: true, add: true, friend: u.name }) : ""}
-        ${acts && acts.length ? `<section class="group" aria-labelledby="h-act"><h2 id="h-act">Ses dernières activités</h2><ul class="feed">${acts.slice(0, 6).map(actHTML).join("")}</ul></section>` : ""}
         ${all.length ? groupsHTML(all, state.ffilter, (e) => listCard(e, { readonly: true, friend: isMe ? null : u.name })) : `<p class="muted">Sa liste est vide pour l'instant.</p>`}
       </div>
     </div>`;
@@ -2445,6 +2462,19 @@ footer a { color: var(--haze); }
     if (!a.id) return "";
     if (auth.token) return `<button class="act-rep" data-act="thread" data-id="${a.id}"${a.replyCount ? "" : ' data-compose="1"'}>${ICON_CHAT}<span>${a.replyCount ? plural(a.replyCount, "réponse", "réponses") : "Répondre"}</span></button>`;
     return a.replyCount && a.siteUrl ? `<a href="${esc(a.siteUrl)}" target="_blank" rel="noopener">${plural(a.replyCount, "réponse", "réponses")}</a>` : "";
+  }
+  /* On a friend's page: the latest few things they did, in a small box (their name is already the page title). */
+  function recentHTML(acts, u) {
+    if (acts == null) return `<aside class="recent" aria-label="Activité récente"><h2>Récemment</h2><ul>${"<li><span class=\"sk\"></span></li>".repeat(3)}</ul></aside>`;
+    if (!acts || !acts.length) return "";
+    return `<aside class="recent" aria-labelledby="h-rec"><h2 id="h-rec">Récemment</h2><ul>${acts.slice(0, 4).map((a) => {
+      const it = item(a.media);
+      const t = titles(a.media.title?.english, a.media.title?.romaji).main;
+      const [before, after] = actVerb(a);
+      return `<li class="ract"><button class="r-cov" data-act="open" data-id="${it.id}" aria-label="Fiche de ${esc(t)}">${img(it.thumb, "")}</button>
+        <div><p>${before.charAt(0).toUpperCase() + before.slice(1)} <button class="m" data-act="open" data-id="${it.id}">${esc(t)}</button>${after}</p>
+        <div class="act-meta"><time datetime="${new Date(a.createdAt * 1000).toISOString()}">${timeAgo(a.createdAt)}</time>${a.id && auth.token ? likeBtn(a) : ""}${repBtn(a)}</div></div></li>`;
+    }).join("")}</ul>${acts.length > 4 && u.siteUrl ? `<a class="recent-more" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Toute son activité sur AniList</a>` : ""}</aside>`;
   }
   function actHTML(a) {
     const it = item(a.media);
@@ -3055,7 +3085,7 @@ footer a { color: var(--haze); }
       <button class="pc-hit" data-act="open" data-id="${m.id}"><span class="pc-img">${img(m.cover, "")}${stampsHTML(m.score, f.score, name)}</span><span class="pc-t">${esc(t)}</span></button>
     </article>`;
   }
-  function compatHTML(f, name) {
+  function compatHTML(f, name, aside) {
     const c = compatOf(f.groups);
     const nm = esc(name);
     const both = c.both.length ? `<p class="cp-both">Vous regardez tous les deux ${listTitles(c.both)} en ce moment.</p>` : "";
@@ -3078,7 +3108,7 @@ footer a { color: var(--haze); }
       <div class="strip" id="row-duo">${c.pairs.slice(0, 24).map(([m, fe]) => duoCard(m, fe, name)).join("")}</div></section>` : "";
     const loved = c.loved.length ? `<section class="group" aria-labelledby="h-loved"><div class="row-head"><div><h2 id="h-loved">Ses coups de cœur que tu n'as pas vus</h2><p>Ce que ${nm} a noté 8 ou plus et qui n'est pas encore dans ta liste.</p></div></div>
       <div class="strip" id="row-loved">${c.loved.slice(0, 24).map((e) => listCard(e, { readonly: true, add: true, friend: name })).join("")}</div></section>` : "";
-    return head + duo + loved;
+    return (aside ? `<div class="cp-row">${head}${aside}</div>` : head) + duo + loved;
   }
 
   /* ================= bilan ================= */
