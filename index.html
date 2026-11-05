@@ -2169,15 +2169,6 @@ footer a { color: var(--haze); }
     }
     return prev;
   }
-  function anyPrequelMap(medias) {
-    const prev = new Map();
-    for (const m of medias) for (const e of (m && m.relations && m.relations.edges) || []) {
-      if (!e.node || e.node.type !== "ANIME") continue;
-      if (e.relationType === "PREQUEL" && !prev.has(m.id)) prev.set(m.id, e.node.id);
-      if (e.relationType === "SEQUEL" && !prev.has(e.node.id)) prev.set(e.node.id, m.id);
-    }
-    return prev;
-  }
   function franchiseKey(m, prev) {
     let id = m.id;
     const seen = new Set([id]);
@@ -3307,7 +3298,7 @@ footer a { color: var(--haze); }
   /* AniList's search ignores very short words: with two or three letters ("be", "fr") it finds next to nothing.
      So the site keeps a small index of the 500 most popular anime (refreshed every week) and matches the start of
      their titles itself, instantly. */
-  const K_POP = "animatheque.populaires.v2";
+  const K_POP = "animatheque.populaires.v3";
   const Q_POP = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage} media(type:ANIME,isAdult:false,sort:POPULARITY_DESC,format_in:[TV,MOVIE,ONA,OVA,TV_SHORT]){id title{romaji english} synonyms coverImage{large color} format seasonYear episodes relations{edges{relationType(version:2) node{id type format}}}}}}`;
   let POP = (() => { const c = lsGet(K_POP, null); return c && Array.isArray(c.l) ? c : { at: 0, l: [], pages: 0 }; })();
   let popBusy = false, popFailAt = 0;
@@ -3323,7 +3314,8 @@ footer a { color: var(--haze); }
       for (let page = POP.pages + 1; page <= 10; page++) {
         const d = await gql(Q_POP, { page }, { bg: !(urgent && page === 1) });
         for (const m of (d && d.Page && d.Page.media) || []) {
-          if (!m || seen.has(m.id) || isSpinoff(m) || (m.relations?.edges || []).some((e) => e.relationType === "PREQUEL" && e.node && e.node.type === "ANIME")) continue;
+          if (!m || seen.has(m.id) || isSpinoff(m) || seriesPrequel(m)) continue;           // a later season
+          if (!SERIES.has(m.format) && (m.relations?.edges || []).some((e) => e.node && e.node.type === "ANIME" && (e.relationType === "PREQUEL" || e.relationType === "SEQUEL"))) continue; // a movie or OVA of a series
           seen.add(m.id);
           l.push({ id: m.id, en: m.title?.english || "", ro: m.title?.romaji || "", syn: (m.synonyms || []).filter((x) => /^[\x20-\x7eÀ-ſ]+$/.test(x)).slice(0, 5),
             c: m.coverImage?.large || "", f: m.format, y: m.seasonYear || 0, e: m.episodes || 0 });
@@ -3369,10 +3361,25 @@ footer a { color: var(--haze); }
     const pop = popMatches(resState.query, 10);
     const keys = new Set(pop.map((x) => Number(x.id)));
     // Seasons and movies of the same anime are one line (the fiche lists them); a match on any of them shows the anime.
-    const prev = anyPrequelMap(net.map((it) => it.raw).filter(Boolean));
+    // The series is the anime (like in your list): later seasons climb to the first season, movies/OVAs join the series they continue.
+    const byId = new Map(net.filter((it) => it.raw).map((it) => [it.raw.id, it.raw]));
+    const prevS = prequelMap([...byId.values()]);
+    const memo = new Map();
+    const keyFor = (m, depth = 0) => {
+      if (memo.has(m.id)) return memo.get(m.id);
+      let key = SERIES.has(m.format) ? franchiseKey(m, prevS) : m.id;
+      if (!SERIES.has(m.format)) for (const e of (m.relations && m.relations.edges) || []) {
+        if (!e.node || e.node.type !== "ANIME" || (e.relationType !== "PREQUEL" && e.relationType !== "SEQUEL")) continue;
+        const o = byId.get(e.node.id);
+        if (o && depth < 6) { key = keyFor(o, depth + 1); break; }
+        if (ROOT.has(e.node.id)) { key = ROOT.get(e.node.id); break; }
+      }
+      memo.set(m.id, key);
+      return key;
+    };
     const fams = [], famOf = new Map();
     for (const it of net) {
-      const key = it.raw ? franchiseKey(it.raw, prev) : Number(it.id);
+      const key = it.raw ? keyFor(it.raw) : Number(it.id);
       if (keys.has(key)) continue;
       let g = famOf.get(key);
       if (!g) { g = { key, items: [] }; famOf.set(key, g); fams.push(g); }
