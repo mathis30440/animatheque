@@ -308,6 +308,10 @@ textarea:focus, .prog select:focus, .prog input:focus { outline: none; border-co
 .users { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .user-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--night-2); }
 .user-row .avatar { width: 44px; height: 44px; }
+.u-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.seen { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.seen::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.seen.on::before { background: var(--s-watching); }
 .user-name { color: var(--paper); font-weight: 800; text-decoration: none; overflow-wrap: anywhere; }
 .user-name:hover { text-decoration: underline; }
 .friends { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
@@ -867,7 +871,14 @@ footer a { color: var(--haze); }
   const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} bannerImage siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
   const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
   const K_FAVS = "animatheque.preferes.v1";
+  /* The banner you pick is written on AniList as a "#banniere" tag in that anime's note: it follows you on every
+     device and your friends see it too (AniList keeps nothing else we could use for this). */
+  const BN_MARK = "#banniere";
+  const hasMark = (n) => /(^|\s)#banniere(?![\p{L}\p{N}_-])/iu.test(n || "");
+  const stripMark = (n) => String(n || "").replace(/\s*#banniere(?![\p{L}\p{N}_-])/giu, "").trim();
+  const withMark = (c, on) => (on ? (c ? `${c}\n\n${BN_MARK}` : BN_MARK) : c);
   // Copies of what AniList sent last time, shown straight away on the next visit while the fresh version loads.
+  const K_SEEN = "animatheque.vus.v1";
   const K_ME = "animatheque.moi.v1", K_FLISTS = "animatheque.listes-amis.v1", K_FOLLOW = "animatheque.amis.v1", K_PENDING = "animatheque.en-attente.v1";
   for (const k of ["animatheque.populaires.v1", "animatheque.populaires.v2"]) { try { localStorage.removeItem(k); } catch (_) {} }
   const M_SAVE = `mutation($mediaId:Int,$status:MediaListStatus,$progress:Int,$scoreRaw:Int,$notes:String,$completedAt:FuzzyDateInput){SaveMediaListEntry(mediaId:$mediaId,status:$status,progress:$progress,scoreRaw:$scoreRaw,notes:$notes,completedAt:$completedAt){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}}`;
@@ -1286,7 +1297,8 @@ footer a { color: var(--haze); }
     e.progress = progress;
     const scored = [...incStates, ...Object.values(al)].find((s) => s.score > 0);
     e.score = scored ? halfOf100(scored.score) : 0;
-    e.comment = ([...incStates, ...Object.values(al)].find((s) => s.notes) || {}).notes || "";
+    e.comment = [...incStates, ...Object.values(al)].map((s) => stripMark(s.notes)).find(Boolean) || "";
+    e.isBanner = Object.values(al).some((s) => hasMark(s.notes));
     const ups = Object.values(al).map((s) => s.updatedAt || 0), adds = Object.values(al).map((s) => s.createdAt || 0).filter(Boolean);
     e.updatedAt = Math.max(0, ...ups) * 1000;
     e.addedAt = (adds.length ? Math.min(...adds) : Math.max(0, ...ups)) * 1000;
@@ -1412,8 +1424,11 @@ footer a { color: var(--haze); }
       } else if (has) w = { status: "PLANNING", progress: 0 };
       if (w) { w.scoreRaw = Math.round((e.score || 0) * 10); out.set(p.id, w); }
     });
-    const first = out.keys().next().value;
-    if (first !== undefined) out.get(first).notes = e.comment || "";
+    // Your review (and the banner tag) go on a season already in your AniList list, never on one it would create.
+    const keys = [...out.keys()];
+    const first = keys.find((k) => e.al && e.al[k]) ?? keys[0];
+    if (first !== undefined) out.get(first).notes = withMark(e.comment || "", !!e.isBanner);
+    for (const k of keys) if (k !== first && e.al && e.al[k] && hasMark(e.al[k].notes)) out.get(k).notes = stripMark(e.al[k].notes);
     return out;
   }
   const syncs = new Map();
@@ -1622,6 +1637,7 @@ footer a { color: var(--haze); }
       setUnread(d.Viewer.unreadNotificationCount || 0, false);
       if (!same) render(); else $("#acct").innerHTML = acctHTML();
       await loadMyList();
+      migrateBanner();
     } catch (err) { if (err.kind !== "auth") { state.alErr = err; render(); } }
   }
   /* After a trip to AniList's settings, fetch the profile again so the new photo (or banner) shows up here. */
@@ -1725,6 +1741,53 @@ footer a { color: var(--haze); }
     paintUsers();
   }
   function avatarImg(u, cls = "avatar") { const src = u && u.avatar ? (u.avatar.medium || u.avatar.large) : ""; return src ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy">` : `<span class="${cls}"></span>`; }
+  /* AniList doesn't say when someone was last connected: the closest thing is their latest activity
+     (an episode watched, a list change, a post), or the last change in their list if that is newer. */
+  const SEEN = new Map(Object.entries((lsGet(K_SEEN, null) || {}).map || {}).map(([k, v]) => [Number(k), v]));
+  let seenAt = (lsGet(K_SEEN, null) || {}).at || 0, seenBusy = false;
+  async function loadSeen() {
+    const fr = state.friends || [];
+    if (!fr.length || seenBusy || !auth.viewer) return;
+    seenBusy = true; seenAt = Date.now();
+    const before = JSON.stringify([...SEEN]);
+    try {
+      for (let i = 0; i < fr.length; i += 25) {
+        const chunk = fr.slice(i, i + 25), vars = {};
+        chunk.forEach((u, k) => { vars["u" + k] = u.id; });
+        const q = `query(${chunk.map((_, k) => `$u${k}:Int`).join(",")}){${chunk.map((_, k) => `s${k}:Page(perPage:1){activities(userId:$u${k},type_in:[ANIME_LIST,MANGA_LIST,TEXT],sort:ID_DESC){... on ListActivity{createdAt} ... on TextActivity{createdAt}}}`).join(" ")}}`;
+        const d = await gql(q, vars, { bg: true });
+        chunk.forEach((u, k) => { const a = d && d["s" + k] && (d["s" + k].activities || [])[0]; if (a && a.createdAt) SEEN.set(u.id, a.createdAt); });
+      }
+      lsSet(K_SEEN, { at: seenAt, map: Object.fromEntries(SEEN) });
+    } catch (_) {}
+    seenBusy = false;
+    if (JSON.stringify([...SEEN]) !== before && (state.view === "amis" || state.view === "ami")) render();
+  }
+  function lastSeen(u) {
+    if (!u) return 0;
+    let t = SEEN.get(u.id) || 0;
+    const acts = u.id ? UFEED.get(u.id) : null;
+    if (acts && acts[0]) t = Math.max(t, acts[0].createdAt || 0);
+    const c = FRIENDS.get(String(u.name || "").toLowerCase());
+    if (c && c.data && c.data.groups) for (const e of c.data.groups) t = Math.max(t, Math.floor((e.updatedAt || 0) / 1000));
+    return t;
+  }
+  function seenAgo(ts) {
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 120) return "à l'instant";
+    if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+    if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+    if (s < 30 * 86400) return `il y a ${Math.floor(s / 86400)} j`;
+    if (s < 365 * 86400) return `il y a ${Math.floor(s / (30 * 86400))} mois`;
+    const y = Math.floor(s / (365 * 86400));
+    return `il y a ${y} an${y > 1 ? "s" : ""}`;
+  }
+  function seenHTML(u) {
+    const t = lastSeen(u);
+    if (!t) return "";
+    const on = Date.now() / 1000 - t < 3600;
+    return `<span class="seen${on ? " on" : ""}" title="D'après sa dernière activité sur AniList">En ligne ${seenAgo(t)}</span>`;
+  }
   function isFriend(id) { return !!(state.friends || []).find((f) => f.id === id); }
   function followBtn(u) {
     return isFriend(u.id)
@@ -2137,19 +2200,72 @@ footer a { color: var(--haze); }
   /* The banner on "Ma liste": the anime you chose (kept in this browser), otherwise your AniList banner,
      otherwise the anime you updated last, softened. */
   // Someone's AniList banner, otherwise the anime they updated last (softened). Used for you and for your friends.
-  function profileBanner(u, list) {
-    const lead = [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  function profileBanner(u, list, chosenToo = true) {
+    list = [...list];
+    const chosen = chosenToo && list.find((e) => e.isBanner);
+    if (chosen && (chosen.banner || chosen.cover)) return { html: bannerHTML(chosen), color: chosen.color };
+    const lead = list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
     if (u && u.bannerImage) return { html: `<img src="${esc(u.bannerImage)}" alt="" decoding="async">`, color: lead ? lead.color : "" };
     return { html: lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : "", color: lead ? lead.color : "" };
   }
-  function autoBanner(v) { return profileBanner(v, state.list.values()); }
+  function autoBanner(v) { return profileBanner(v, state.list.values(), false); }
+  function currentBanner() {
+    if (state.mode === "anilist") return [...state.list.values()].find((e) => e.isBanner) || null;
+    return prefs.banner ? state.list.get(prefs.banner) || null : null;
+  }
+  async function setBanner(id) {
+    if (state.mode !== "anilist") { if (id) prefs.banner = id; else delete prefs.banner; lsSet(K_PREF, prefs); render(); return; }
+    const old = currentBanner(), next = id ? state.list.get(id) : null;
+    if ((old ? old.id : "") === (next ? next.id : "")) return;
+    const olds = old && Object.assign({}, old, { isBanner: false }), nexts = next && Object.assign({}, next, { isBanner: true });
+    // Only the notes change: one request for the old and the new anime together.
+    const jobs = [];
+    for (const e of [olds, nexts]) {
+      if (!e) continue;
+      for (const [mid, w] of desiredFor(e)) { const have = e.al && e.al[mid]; if (have && w.notes !== undefined && (have.notes || "") !== w.notes) jobs.push({ gid: e.id, mid, notes: w.notes }); }
+    }
+    if (olds) state.list.set(olds.id, olds);
+    if (nexts) state.list.set(nexts.id, nexts);
+    if (prefs.banner) { delete prefs.banner; lsSet(K_PREF, prefs); }
+    render();
+    if (!jobs.length) return;
+    try {
+      const defs = [], fields = [], vars = {};
+      jobs.forEach((j, i) => { defs.push(`$m${i}:Int`, `$n${i}:String`); vars["m" + i] = j.mid; vars["n" + i] = j.notes; fields.push(`b${i}:SaveMediaListEntry(mediaId:$m${i},notes:$n${i}){id mediaId notes}`); });
+      const d = await gql(`mutation(${defs.join(",")}){${fields.join(" ")}}`, vars);
+      const got = new Map();
+      jobs.forEach((j, i) => {
+        const r = d && d["b" + i]; if (!r) return;
+        got.set(j.mid, r.notes || "");
+        const e = state.list.get(j.gid);
+        if (e && e.al && e.al[j.mid]) e.al = Object.assign({}, e.al, { [j.mid]: Object.assign({}, e.al[j.mid], { notes: r.notes || "" }) });
+      });
+      // Keep the saved copy in step, so the next visit opens on the right banner straight away.
+      const c = lsGet(K_ME, null);
+      if (c && c.col && c.tok === tokTag()) {
+        for (const l of c.col.lists || []) for (const en of l.entries || []) if (got.has(en.mediaId)) en.notes = got.get(en.mediaId);
+        lsSet(K_ME, c); meRaw = JSON.stringify(c.col);
+      }
+    } catch (err) {
+      if (old) state.list.set(old.id, old);
+      if (next) state.list.set(next.id, next);
+      render();
+      toast(`La bannière n'a pas pu être enregistrée sur AniList. ${errText(err)}`);
+    }
+  }
+  // A banner picked before it was saved on AniList (kept in this browser): send it once, then forget the local copy.
+  function migrateBanner() {
+    if (state.mode !== "anilist" || !prefs.banner || !state.alLoaded) return;
+    if (currentBanner() || !state.list.has(prefs.banner)) { delete prefs.banner; lsSet(K_PREF, prefs); return; }
+    setBanner(prefs.banner);
+  }
   function bannerHTML(e) { return e.banner ? `<img src="${esc(e.banner)}" alt="" loading="lazy" decoding="async">` : img(e.cover, "", "soft"); }
   function bannerPickHTML(v) {
     const list = [...state.list.values()].filter((e) => e.banner || e.cover)
       .sort((a, b) => (!!b.banner - !!a.banner) || titles(a.en, a.ro).main.localeCompare(titles(b.en, b.ro).main, "fr"));
-    const auto = autoBanner(v), cur = prefs.banner && state.list.has(prefs.banner) ? prefs.banner : "";
+    const auto = autoBanner(v), cb = currentBanner(), cur = cb ? cb.id : "";
     return `<section class="bn-pick" aria-labelledby="h-bn">
-      <div class="bn-head"><div><h2 id="h-bn">Choisis ta bannière</h2><p>Parmi les animes de ta liste. Ton choix est gardé sur cet appareil.</p></div><button class="btn btn-sm" data-act="banner-pick">Fermer</button></div>
+      <div class="bn-head"><div><h2 id="h-bn">Choisis ta bannière</h2><p>Parmi les animes de ta liste. ${state.mode === "anilist" ? "Ton choix est enregistré sur AniList (une étiquette #banniere dans la note de l'anime) : tu le retrouves sur tous tes appareils et tes amis le voient." : "Ton choix est gardé sur cet appareil."}</p></div><button class="btn btn-sm" data-act="banner-pick">Fermer</button></div>
       <div class="strip bn-strip" id="row-bn">
         <button class="bn-tile" data-act="banner-set" data-id="" aria-pressed="${!cur}" style="${tintVars(auto.color)}"><span class="bn-img">${auto.html}</span><span class="bn-t">Automatique</span></button>
         ${list.map((e) => `<button class="bn-tile" data-act="banner-set" data-id="${e.id}" aria-pressed="${cur === e.id}" style="${tintVars(e.color)}"><span class="bn-img">${bannerHTML(e)}</span><span class="bn-t">${esc(titles(e.en, e.ro).main)}</span></button>`).join("")}
@@ -2159,8 +2275,8 @@ footer a { color: var(--haze); }
   function meHeadHTML(title) {
     const v = auth.viewer;
     if (!v) return `<h1>${title}</h1>`;
-    const pick = prefs.banner ? state.list.get(prefs.banner) : null;
-    const b = pick ? { html: bannerHTML(pick), color: pick.color } : autoBanner(v);
+    const pick = currentBanner();
+    const b = pick && (pick.banner || pick.cover) ? { html: bannerHTML(pick), color: pick.color } : autoBanner(v);
     return `<div class="me" style="${tintVars(b.color)}">
       <div class="me-banner">${b.html}<button class="me-bn-edit" data-act="banner-pick" aria-expanded="${!!state.bnPick}" title="Changer la bannière">${ICON_IMAGE}<span>Bannière</span></button></div>
       <div class="me-row"><div class="me-av">${avatarImg(v)}<a class="me-av-edit" href="${AL_SETTINGS}" target="_blank" rel="noopener" data-act="avatar-edit" title="Changer ma photo de profil" aria-label="Changer ma photo de profil sur AniList">${ICON_PEN}</a></div><div><h1>${title}</h1><p class="me-name">${esc(v.name)} sur AniList</p></div></div>
@@ -2236,7 +2352,7 @@ footer a { color: var(--haze); }
     const flist = state.friendsErr ? `<div class="notice"><span>${esc(errText(state.friendsErr))}</span><button class="btn btn-sm" data-act="reload-friends">Réessayer</button></div>`
       : !friends ? `<p class="muted">Chargement de tes amis…</p>`
       : !friends.length ? `<p class="muted">Tu n'as encore ajouté personne. Cherche le pseudo AniList d'un ami juste au-dessus.</p>`
-      : `<ul class="users">${friends.map((u) => `<li class="user-row">${avatarImg(u)}<div style="min-width:0"><a class="user-name" href="#ami-${encodeURIComponent(u.name)}">${esc(u.name)}</a><div class="muted small">${u.isFollower ? "Vous êtes amis" : "Ne t'a pas encore ajouté"}${friendPct(u.name)}</div></div><a class="btn btn-sm btn-ghost" href="#ami-${encodeURIComponent(u.name)}">Sa liste</a></li>`).join("")}</ul>`;
+      : `<ul class="users">${friends.map((u) => `<li class="user-row">${avatarImg(u)}<div style="min-width:0"><a class="user-name" href="#ami-${encodeURIComponent(u.name)}">${esc(u.name)}</a><div class="muted small u-meta">${u.isFollower ? (lastSeen(u) ? "" : "Vous êtes amis") : "Ne t'a pas encore ajouté"}${seenHTML(u)}${friendPct(u.name)}</div></div><a class="btn btn-sm btn-ghost" href="#ami-${encodeURIComponent(u.name)}">Sa liste</a></li>`).join("")}</ul>`;
     const f = state.feed;
     const feed = state.feedErr ? `<div class="notice"><span>${esc(errText(state.feedErr))}</span><button class="btn btn-sm" data-act="reload-feed">Réessayer</button></div>`
       : !f ? `<p class="sr">Chargement du fil d'actu…</p><ul class="feed" aria-hidden="true">${Array.from({ length: 5 }, () => `<li class="act"><span class="sk" style="width:40px;height:40px;border-radius:50%"></span><div class="act-txt"><span class="sk" style="height:13px;width:80%"></span><span class="sk" style="height:10px;width:30%"></span></div><span class="sk" style="width:44px;height:62px;border-radius:7px"></span></li>`).join("")}</ul>`
@@ -2277,7 +2393,7 @@ footer a { color: var(--haze); }
       <header class="lh">
         <div class="me" style="${tintVars(bn.color)}">
           <div class="me-banner">${bn.html}<div class="me-acts">${auth.viewer && !isMe && u.id ? followBtn(u) : ""}${u.siteUrl ? `<a class="btn btn-sm" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Profil AniList</a>` : ""}</div></div>
-          <div class="me-row"><div class="me-av">${avatarImg(u)}</div><div><h1>${esc(u.name)}</h1><p class="me-name">Sa liste sur AniList</p></div></div>
+          <div class="me-row"><div class="me-av">${avatarImg(u)}</div><div><h1>${esc(u.name)}</h1><p class="me-name">Sa liste sur AniList${lastSeen(u) ? ` · ${seenHTML(u)}` : ""}</p></div></div>
         </div>
         <p class="lh-sum">${sum}</p>
         ${all.length ? distHTML(counts) : ""}
@@ -3638,6 +3754,7 @@ footer a { color: var(--haze); }
     if (focusSel) { const el = $("#view " + focusSel); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch (_) {} } }
     if (state.view === "decouvrir" && !state.home && !state.homeErr && !homeLoading) { homeLoading = true; loadHome().finally(() => { homeLoading = false; }); }
     if ((state.view === "amis" || state.view === "ami") && auth.viewer && (!state.friends || state.friendsStale) && !state.friendsErr && !friendsLoading) loadFriends();
+    if (state.view === "amis" && auth.viewer && state.friends && state.friends.length && !seenBusy && Date.now() - seenAt > 5 * 60e3) loadSeen();
     if (state.view === "amis") paintUsers();
     if (state.view === "amis" && auth.viewer && !state.feedErr && !feedLoading && (!state.feed || (Date.now() - state.feed.at > 45000 && Date.now() - feedTryAt > 45000))) loadFeed(false, !!state.feed);
     if (state.view === "ami" && state.friend && state.friend.user && state.friend.user.id && (!UFEED.get(state.friend.user.id) || Date.now() - (UFEED_AT.get(state.friend.user.id) || 0) > 60000)) loadUserFeed(state.friend.user.id, UFEED.has(state.friend.user.id));
@@ -4105,7 +4222,7 @@ footer a { color: var(--haze); }
       case "bilan-period": state.bilanP = el.dataset.p; render(); break;
       case "bilan-share": shareBilan(el); break;
       case "banner-pick": state.bnPick = !state.bnPick; render(); break;
-      case "banner-set": if (el.dataset.id) prefs.banner = el.dataset.id; else delete prefs.banner; lsSet(K_PREF, prefs); render(); break;
+      case "banner-set": setBanner(el.dataset.id || ""); break;
       case "avatar-edit": avatarCheckAt = Date.now(); if (acctOpen) { acctOpen = false; setTimeout(() => { $("#acct").innerHTML = acctHTML(); }, 0); } break;
       case "reopen": openAnime(el.dataset.id); break;
       case "add": ev.stopPropagation(); quickAdd(el.dataset.id, el); break;
