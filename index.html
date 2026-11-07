@@ -511,7 +511,7 @@ footer a { color: var(--haze); }
 .me-av-edit { position: absolute; right: -2px; bottom: 2px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sakura); color: var(--sakura-ink); box-shadow: 0 0 0 3px var(--night); }
 .me-av-edit:hover { background: var(--paper); color: var(--night); }
 .me-av-edit svg { width: 16px; height: 16px; }
-.me-name { margin: 6px 0 4px; color: var(--haze); font-size: 14px; }
+.me-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin: 6px 0 4px; color: var(--haze); font-size: 14px; }
 .strip.cw-strip { grid-auto-columns: 340px; gap: 16px; }
 .cw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
 .cw { position: relative; display: grid; min-width: 0; border-radius: 18px; overflow: hidden; isolation: isolate; border: 1px solid var(--line); background: color-mix(in srgb, var(--tint) 16%, var(--night-2)); }
@@ -2393,7 +2393,7 @@ footer a { color: var(--haze); }
       <header class="lh">
         <div class="me" style="${tintVars(bn.color)}">
           <div class="me-banner">${bn.html}<div class="me-acts">${auth.viewer && !isMe && u.id ? followBtn(u) : ""}${u.siteUrl ? `<a class="btn btn-sm" href="${esc(u.siteUrl)}" target="_blank" rel="noopener">Profil AniList</a>` : ""}</div></div>
-          <div class="me-row"><div class="me-av">${avatarImg(u)}</div><div><h1>${esc(u.name)}</h1><p class="me-name">Sa liste sur AniList${lastSeen(u) ? ` · ${seenHTML(u)}` : ""}</p></div></div>
+          <div class="me-row"><div class="me-av">${avatarImg(u)}</div><div><h1>${esc(u.name)}</h1><p class="me-name"><span>Sa liste sur AniList</span>${seenHTML(u)}</p></div></div>
         </div>
         <p class="lh-sum">${sum}</p>
         ${all.length ? distHTML(counts) : ""}
