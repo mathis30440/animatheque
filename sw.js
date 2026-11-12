@@ -1,6 +1,6 @@
 // Animathèque — service worker: keeps the app shell so it opens like an app, even offline.
-const CACHE = "animatheque-v44";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+const CACHE = "animatheque-v45";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./fonts/mplus1-latin.woff2", "./fonts/mplus1-latin-ext.woff2", "./fonts/dela-gothic-one-latin.woff2", "./fonts/dela-gothic-one-latin-ext.woff2"];
 
 self.addEventListener("install", (event) => {
   // "reload": take the files from the server, not from the browser's own cache, so a new version is really new.
