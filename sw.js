@@ -1,5 +1,5 @@
 // Animathèque — service worker: keeps the app shell so it opens like an app, even offline.
-const CACHE = "animatheque-v39";
+const CACHE = "animatheque-v40";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
