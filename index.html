@@ -394,6 +394,11 @@ textarea:focus, .prog select:focus, .prog input:focus { outline: none; border-co
 .seg button { border: 0; background: none; color: var(--haze); font-weight: 700; padding: 8px 14px; border-radius: 9px; font-size: 14px; transition: background-color .15s, color .15s; }
 .seg button:hover { color: var(--paper); }
 .seg button[aria-pressed="true"] { background: var(--paper); color: var(--night); }
+.seg .n { margin-left: 4px; font-weight: 500; color: var(--dim); }
+.seg button[aria-pressed="true"] .n { color: var(--night-3); }
+.res-sec { display: flex; align-items: center; gap: 10px; padding: 12px 12px 4px; font-size: 13px; font-weight: 700; color: var(--haze); }
+.res-sec::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--sakura); transform: rotate(45deg); }
+.res-sec:first-child { padding-top: 6px; }
 .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .day { background: var(--night-2); border: 1px solid var(--line); border-radius: 18px; padding: 16px 14px; display: grid; gap: 14px; align-content: start; min-width: 0; }
 .day.today { border-color: color-mix(in srgb, var(--sakura) 55%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--sakura) 10%, var(--night-2)), var(--night-2) 140px); box-shadow: inset 0 3px 0 var(--sakura); }
@@ -901,14 +906,17 @@ footer a { color: var(--haze); }
   // AniList client (anilist.co → Settings → Developer). Its redirect URL must be this site's address.
   const ANILIST_CLIENT_ID = "55922";
   const API = "https://graphql.anilist.co";
-  const K_LIST = "animatheque.liste.v1", K_PREF = "animatheque.prefs.v1", K_ROOT = "animatheque.racines.v1", K_FR = "animatheque.fr.", K_HOME = "animatheque.accueil.v1";
+  const K_LIST = "animatheque.liste.v1", K_PREF = "animatheque.prefs.v1", K_ROOT = "animatheque.racines.v1", K_FR = "animatheque.fr.", K_HOME = "animatheque.accueil.v2";
   const K_TOKEN = "animatheque.anilist.v1", K_EXCL = "animatheque.saisons-ignorees.v1", K_IMPORT = "animatheque.import-fait.v1";
 
   const ORDER = ["watching", "plan", "completed", "paused", "dropped"];
   const STATUS = { watching: "En cours", completed: "Terminé", plan: "À voir", paused: "En pause", dropped: "Abandonné" };
   const AL_STATUS = { watching: "CURRENT", completed: "COMPLETED", plan: "PLANNING", paused: "PAUSED", dropped: "DROPPED" };
   const SCORE_LABEL = { 10: "Chef-d'œuvre", 9: "Excellent", 8: "Très bon", 7: "Bon", 6: "Correct", 5: "Moyen", 4: "Mauvais", 3: "Très mauvais", 2: "Horrible", 1: "Catastrophique" };
-  const FORMAT = { TV: "Série TV", TV_SHORT: "Série courte", MOVIE: "Film", OVA: "OVA", ONA: "Série web", SPECIAL: "Épisode spécial", MUSIC: "Clip" };
+  const FORMAT = { TV: "Série TV", TV_SHORT: "Série courte", MOVIE: "Film", OVA: "OVA", ONA: "Série web", SPECIAL: "Épisode spécial", MUSIC: "Clip", MANGA: "Manga", ONE_SHOT: "One shot", NOVEL: "Light novel" };
+  // AniList files Korean webtoons and Chinese comics as "manga" too: name them the way readers do.
+  const COMIC_OF = { KR: "Manhwa", CN: "Manhua", TW: "Manhua" };
+  const formatName = (format, country) => (format === "MANGA" && COMIC_OF[country]) || FORMAT[format] || "";
   const AIR = { FINISHED: "terminé", RELEASING: "en diffusion", NOT_YET_RELEASED: "à venir", CANCELLED: "annulé", HIATUS: "en pause" };
   const SEASONS = { WINTER: "Hiver", SPRING: "Printemps", SUMMER: "Été", FALL: "Automne" };
   const GENRES = { Action: "Action", Adventure: "Aventure", Comedy: "Comédie", Drama: "Drame", Ecchi: "Ecchi", Fantasy: "Fantasy", Horror: "Horreur", "Mahou Shoujo": "Magical girl", Mecha: "Mecha", Music: "Musique", Mystery: "Mystère", Psychological: "Psychologique", Romance: "Romance", "Sci-Fi": "Science-fiction", "Slice of Life": "Tranche de vie", Sports: "Sport", Supernatural: "Surnaturel", Thriller: "Thriller" };
@@ -919,18 +927,32 @@ footer a { color: var(--haze); }
   const RECO_CARD = "id idMal title{romaji english} coverImage{extraLarge large color} bannerImage format episodes status seasonYear startDate{year} averageScore genres";
   const STUDIOS = "studios{edges{isMain node{name isAnimationStudio}}}";
   const PART = "id idMal title{romaji english} coverImage{extraLarge large color} format episodes status season seasonYear startDate{year month day} nextAiringEpisode{episode airingAt} relations{edges{relationType(version:2) node{id type format}}}";
+  /* A manga comes back with its chapters under the name "episodes": the list, the progress and the sync to AniList
+     then work the same for both, a manga being one part whose episodes are chapters. */
+  const M_CARD = "id idMal type countryOfOrigin title{romaji english} coverImage{extraLarge large color} bannerImage format episodes:chapters volumes status startDate{year month day} averageScore genres";
   const HOME_PARTS = {
     trending: `trending:Page(perPage:25){media(type:ANIME,sort:TRENDING_DESC,isAdult:false){${CARD} description(asHtml:false)}}`,
     season: `season:Page(perPage:30){media(type:ANIME,season:$season,seasonYear:$year,sort:POPULARITY_DESC,isAdult:false,format_in:[TV,TV_SHORT,ONA]){${CARD}}}`,
     popular: `popular:Page(perPage:30){media(type:ANIME,sort:POPULARITY_DESC,isAdult:false,format_in:[TV,TV_SHORT,ONA]){${CARD}}}`,
     films: `films:Page(perPage:25){media(type:ANIME,sort:SCORE_DESC,isAdult:false,format:MOVIE,popularity_greater:40000){${CARD}}}`,
+    mangas: `mangas:Page(perPage:25){media(type:MANGA,sort:TRENDING_DESC,isAdult:false,format_in:[MANGA,ONE_SHOT]){${M_CARD}}}`,
   };
-  const homeQuery = (keys) => `query($season:MediaSeason,$year:Int){${keys.map((k) => HOME_PARTS[k]).join("\n")}}`;
-  const Q_SEARCH = `query($q:String){Page(perPage:25){media(search:$q,type:ANIME,isAdult:false,sort:[SEARCH_MATCH,POPULARITY_DESC],format_not_in:[MUSIC]){${CARD}}}}`;
+  // AniList refuses a query that declares a variable it doesn't use, so the season variables only come with the season row.
+  const homeQuery = (keys) => {
+    const body = keys.map((k) => HOME_PARTS[k]).join("\n");
+    return `query${body.includes("$season") ? "($season:MediaSeason,$year:Int)" : ""}{${body}}`;
+  };
+  const Q_SEARCH = `query($q:String){Page(perPage:25){media(search:$q,type:ANIME,isAdult:false,sort:[SEARCH_MATCH,POPULARITY_DESC],format_not_in:[MUSIC]){${CARD}}}
+    mangas:Page(perPage:8){media(search:$q,type:MANGA,isAdult:false,sort:[SEARCH_MATCH,POPULARITY_DESC],format_in:[MANGA,ONE_SHOT]){${M_CARD}}}}`;
+  const Q_MANGA = `query($id:Int){Media(id:$id,type:MANGA){${M_CARD} description(asHtml:false) siteUrl staff(perPage:4,sort:RELEVANCE){edges{role node{name{full}}}}}}`;
   const Q_ROOT = `query($id:Int){Media(id:$id,type:ANIME){${PART} bannerImage duration averageScore genres description(asHtml:false) ${STUDIOS} siteUrl}}`;
   const Q_PARTS = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){${PART}}}}`;
   const Q_VIEWER = `query{Viewer{id name avatar{large medium} bannerImage siteUrl unreadNotificationCount options{airingNotifications}}}`;
-  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){user{id name avatar{large medium} bannerImage siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day} media{${PART} bannerImage duration genres ${STUDIOS}}}}}}`;
+  const COL_ROW = "id mediaId status progress score(format:POINT_100) notes updatedAt createdAt completedAt{year month day}";
+  const COL_ANIME = `user{id name avatar{large medium} bannerImage siteUrl favourites{anime(perPage:50){nodes{id}}}} lists{isCustomList entries{${COL_ROW} media{${PART} bannerImage duration genres ${STUDIOS}}}}`;
+  const Q_COLLECTION = `query($userId:Int,$userName:String){MediaListCollection(userId:$userId,userName:$userName,type:ANIME){${COL_ANIME}}}`;
+  // Your own list: animes and mangas in one request (AniList counts requests, not their size).
+  const Q_MY_COLLECTION = `query($userId:Int){MediaListCollection(userId:$userId,type:ANIME){${COL_ANIME}} mangas:MediaListCollection(userId:$userId,type:MANGA){lists{isCustomList entries{${COL_ROW} media{${M_CARD}}}}}}`;
   const M_FAV = `mutation($id:Int){ToggleFavourite(animeId:$id){anime(perPage:50){nodes{id}}}}`;
   const K_FAVS = "animatheque.preferes.v1";
   /* The banner you pick is written on AniList as a "#banniere" tag in that anime's note: it follows you on every
@@ -942,7 +964,7 @@ footer a { color: var(--haze); }
   // Copies of what AniList sent last time, shown straight away on the next visit while the fresh version loads.
   const K_SEEN = "animatheque.vus.v1";
   const K_ME = "animatheque.moi.v1", K_FLISTS = "animatheque.listes-amis.v1", K_FOLLOW = "animatheque.amis.v1", K_PENDING = "animatheque.en-attente.v1";
-  for (const k of ["animatheque.populaires.v1", "animatheque.populaires.v2"]) { try { localStorage.removeItem(k); } catch (_) {} }
+  for (const k of ["animatheque.populaires.v1", "animatheque.populaires.v2", "animatheque.accueil.v1"]) { try { localStorage.removeItem(k); } catch (_) {} }
   const M_SAVE = `mutation($mediaId:Int,$status:MediaListStatus,$progress:Int,$scoreRaw:Int,$notes:String,$completedAt:FuzzyDateInput){SaveMediaListEntry(mediaId:$mediaId,status:$status,progress:$progress,scoreRaw:$scoreRaw,notes:$notes,completedAt:$completedAt){id mediaId status progress score(format:POINT_100) notes updatedAt completedAt{year month day}}}`;
   const M_DELETE = `mutation($id:Int){DeleteMediaListEntry(id:$id){deleted}}`;
   const Q_USERS = `query($q:String){Page(perPage:10){users(search:$q){id name avatar{large medium} isFollowing isFollower}}}`;
@@ -1078,6 +1100,31 @@ footer a { color: var(--haze); }
     return { main, alt: other && keyOf(other) !== keyOf(main) ? other : "" };
   }
   function entryOf(id) { id = Number(id); return state.list.get(String(id)) || (ROOT.has(id) ? state.list.get(String(ROOT.get(id))) : null) || null; }
+
+  /* ----- mangas: same list, same sync; only the words and a few anime-only features differ ----- */
+  const MANGA_IDS = new Set();
+  const isManga = (e) => !!e && e.kind === "manga";
+  function isMangaId(id) {
+    id = Number(id);
+    if (MANGA_IDS.has(id) || isManga(state.list.get(String(id)))) return true;
+    const it = REG.get(id), fr = FR.get(id);
+    return !!((it && it.kind === "manga") || (fr && fr.manga));
+  }
+  const animeEntries = () => [...state.list.values()].filter((e) => !isManga(e));
+  const mangaEntries = () => [...state.list.values()].filter(isManga);
+  const PLAN_READ = "À lire";
+  const stName = (s, manga) => (manga && s === "plan" ? PLAN_READ : STATUS[s]);
+  const unitOf = (manga) => (manga ? { one: "chapitre", many: "chapitres", short: "ch.", Cap: "Chapitre", cap: "Ch." } : { one: "épisode", many: "épisodes", short: "ép.", Cap: "Épisode", cap: "Ép." });
+  // "Story & Art (vols 1-41)" → the author's name, once.
+  function authorsOf(m) {
+    const out = [];
+    for (const ed of (m && m.staff && m.staff.edges) || []) {
+      if (!ed || !ed.node || !/^(story|art|original)/i.test(ed.role || "")) continue;
+      const n = ed.node.name && ed.node.name.full;
+      if (n && !out.includes(n)) out.push(n);
+    }
+    return out.slice(0, 2);
+  }
 
   /* ================= API ================= */
   class ApiError extends Error { constructor(kind) { super(kind); this.kind = kind; } }
@@ -1235,8 +1282,18 @@ footer a { color: var(--haze); }
     }
   }
   const byStart = (a, b) => ((a.startDate?.year || 9999) - (b.startDate?.year || 9999)) || ((a.startDate?.month || 13) - (b.startDate?.month || 13)) || ((a.startDate?.day || 32) - (b.startDate?.day || 32));
+  async function loadManga(id, bg) {
+    const d = await gql(Q_MANGA, { id }, { bg: !!bg });
+    const root = d?.Media;
+    if (!root) throw new ApiError("missing");
+    MANGA_IDS.add(root.id);
+    const fr = { at: Date.now(), root, parts: [root], films: [], manga: true };
+    frSet(id, fr);
+    return fr;
+  }
   async function loadFranchise(rootId, force, bg) {
     if (!force) { const c = frGet(rootId); if (c) return c; }
+    if (isMangaId(rootId)) return loadManga(rootId, bg);
     const d = await gql(Q_ROOT, { id: rootId }, { bg: !!bg });
     const root = d?.Media;
     if (!root) throw new ApiError("missing");
@@ -1275,7 +1332,8 @@ footer a { color: var(--haze); }
     }
     const it = { id: m.id, raw: m, seq, title, alt: t.alt, cover: m.coverImage?.extraLarge || m.coverImage?.large || "", thumb: m.coverImage?.large || m.coverImage?.extraLarge || "",
       color: m.coverImage?.color || "", banner: m.bannerImage || "", format: m.format, year: m.seasonYear || m.startDate?.year || 0, score: m.averageScore || 0,
-      eps: m.episodes || 0, status: m.status, genres: m.genres || [], badge, group: keyOf(title) };
+      eps: m.episodes || 0, status: m.status, genres: m.genres || [], badge, group: keyOf(title), kind: m.type === "MANGA" ? "manga" : "anime", country: m.countryOfOrigin || "" };
+    if (it.kind === "manga") MANGA_IDS.add(m.id);
     REG.set(m.id, it);
     return it;
   }
@@ -1291,7 +1349,7 @@ footer a { color: var(--haze); }
     }
     return out;
   }
-  const subline = (it) => [FORMAT[it.format] || "", it.year || ""].filter(Boolean).join(", ");
+  const subline = (it) => [formatName(it.format, it.country), it.year || ""].filter(Boolean).join(", ");
 
   /* ================= list model ================= */
   function partsFrom(fr) {
@@ -1315,6 +1373,7 @@ footer a { color: var(--haze); }
       banner: r.bannerImage || "", format: r.format, year: r.seasonYear || r.startDate?.year || 0, genres: r.genres || [], mins: r.duration || 24, studio: mainStudio(r),
       parts: partsFrom(fr), excluded: [], status, score: 0, progress: 0, comment: "", addedAt: now, updatedAt: now, finishedAt: 0 };
     if (state.mode === "anilist") e.al = {};
+    if (r.type === "MANGA") Object.assign(e, { kind: "manga", mins: 0, country: r.countryOfOrigin || "", vols: r.volumes || 0 });
     e.total = totalOf(e);
     if (status === "completed") { e.progress = e.total; e.finishedAt = now; }
     return e;
@@ -1333,12 +1392,12 @@ footer a { color: var(--haze); }
     return { season: 0, ep: p, size: e.total, multi: true, before: 0 };
   }
   function progressLabel(e) {
-    const total = e.total || 0, p = e.progress || 0;
-    if (e.status === "completed" && total && p >= total) return plural(total, "épisode", "épisodes");
+    const total = e.total || 0, p = e.progress || 0, u = unitOf(isManga(e));
+    if (e.status === "completed" && total && p >= total) return plural(total, u.one, u.many);
     if (!p) return "Pas commencé";
     const pos = position(e);
     if (pos.multi) return `Saison ${pos.season + 1}, ép. ${pos.ep}${pos.size ? "/" + pos.size : ""}`;
-    return `Ép. ${p}/${total || "?"}`;
+    return `${u.cap} ${p}/${total || "?"}`;
   }
 
   /* ----- AniList entries grouped into one entry per anime ----- */
@@ -1409,6 +1468,23 @@ footer a { color: var(--haze); }
     scheduleResolve();
     return out;
   }
+  /* Your mangas: one entry each (no seasons to gather), built from the same AniList rows as the animes. */
+  function buildMangas(col) {
+    const out = [];
+    for (const l of col?.lists || []) if (!l.isCustomList) for (const r of l.entries || []) {
+      const m = r && r.media;
+      if (!m || out.some((e) => e.id === String(m.id))) continue;
+      MANGA_IDS.add(m.id);
+      const e = { id: String(m.id), kind: "manga", en: m.title?.english || "", ro: m.title?.romaji || "", cover: m.coverImage?.extraLarge || m.coverImage?.large || "",
+        color: m.coverImage?.color || "", banner: m.bannerImage || "", format: m.format, country: m.countryOfOrigin || "", vols: m.volumes || 0,
+        year: m.startDate?.year || 0, genres: m.genres || [], mins: 0, studio: "", parts: partsFrom({ parts: [m] }), excluded: [],
+        al: { [m.id]: { id: r.id, status: r.status, progress: r.progress || 0, score: Math.round(r.score || 0), notes: r.notes || "", updatedAt: r.updatedAt || 0, createdAt: r.createdAt || 0, done: dateTs(r.completedAt) } } };
+      out.push(applyAl(e));
+    }
+    return out;
+  }
+  // Everything in your AniList list: the animes grouped by franchise, then the mangas.
+  const myGroups = (col, mcol) => [...buildGroups(col, true), ...buildMangas(mcol)];
   /* Someone who only added "season 6" has seen seasons 1 to 5: look up those seasons quietly (a few at a time,
      AniList allows about 30 requests a minute), then count them, in your list and on your friends' pages alike. */
   const NEED = new Map(), TRIED = new Set();
@@ -1454,7 +1530,7 @@ footer a { color: var(--haze); }
       if (syncs.size || state.sheet) setTimeout(regroup, 15000);
       else {
         const next = new Map();
-        for (const e of buildGroups(JSON.parse(meRaw), true)) next.set(e.id, e);
+        for (const e of myGroups(JSON.parse(meRaw), meMRaw ? JSON.parse(meMRaw) : null)) next.set(e.id, e);
         if (groupSig([...next.values()]) !== groupSig([...state.list.values()])) { state.list = next; changed = true; }
       }
     }
@@ -1661,7 +1737,7 @@ footer a { color: var(--haze); }
   function toLocal() {
     for (const s of syncs.values()) clearTimeout(s.timer);
     syncs.clear();
-    lsDel(K_TOKEN); lsDel(K_ME); lsDel(K_FLISTS); lsDel(K_FOLLOW); lsDel(K_PENDING); meRaw = "";
+    lsDel(K_TOKEN); lsDel(K_ME); lsDel(K_FLISTS); lsDel(K_FOLLOW); lsDel(K_PENDING); meRaw = ""; meMRaw = "";
     auth.token = null; auth.viewer = null;
     state.mode = "local"; state.list = localList; state.alLoaded = false; state.alErr = null;
     state.friends = null; state.friend = null; FRON.clear(); FRIENDS.clear();
@@ -1673,18 +1749,18 @@ footer a { color: var(--haze); }
   function logout() { toLocal(); toast("Tu es déconnecté. Ta liste reste sur ton compte AniList."); if (state.view === "amis" || state.view === "ami") location.hash = "#liste"; render(); }
   function sessionExpired() { if (!auth.token) return; toLocal(); toast("Ta session AniList a expiré. Reconnecte-toi pour retrouver ta liste.", "Se connecter", login); render(); }
   const tokTag = () => (auth.token || "").slice(-24);
-  let meRaw = "";
+  let meRaw = "", meMRaw = "";
   function hydrateMe() {
     if (!auth.token) return;
     const c = lsGet(K_ME, null);
     if (!c || c.tok !== tokTag() || !c.viewer || !c.col) return;
     try {
       const next = new Map();
-      for (const e of buildGroups(c.col, true)) next.set(e.id, e);
+      for (const e of myGroups(c.col, c.mcol)) next.set(e.id, e);
       applyPending(next);
       auth.viewer = c.viewer;
       state.list = next; state.favs = favIds(c.col.user); state.alLoaded = true;
-      meRaw = JSON.stringify(c.col);
+      meRaw = JSON.stringify(c.col); meMRaw = c.mcol ? JSON.stringify(c.mcol) : "";
       const f = lsGet(K_FOLLOW, null);
       if (f && f.tok === tokTag() && Array.isArray(f.list)) { state.friends = f.list; state.friendsStale = true; }
     } catch (_) { lsDel(K_ME); }
@@ -1727,19 +1803,20 @@ footer a { color: var(--haze); }
     const hadErr = !!state.alErr;
     state.alErr = null;
     try {
-      const d = await gql(Q_COLLECTION, { userId: auth.viewer.id });
-      const raw = JSON.stringify(d.MediaListCollection);
+      const d = await gql(Q_MY_COLLECTION, { userId: auth.viewer.id });
+      const raw = JSON.stringify(d.MediaListCollection), mraw = d.mangas ? JSON.stringify(d.mangas) : "";
+      const saved = () => ({ tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection, mcol: d.mangas || null });
       // Same as the copy already on screen: nothing to redraw.
-      if (raw === meRaw && state.alLoaded && !hadErr && !force && !lsGet(K_PENDING, null)) { lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); return; }
+      if (raw === meRaw && mraw === meMRaw && state.alLoaded && !hadErr && !force && !lsGet(K_PENDING, null)) { lsSet(K_ME, saved()); return; }
       const next = new Map();
-      for (const e of buildGroups(d.MediaListCollection, true)) next.set(e.id, e);
+      for (const e of myGroups(d.MediaListCollection, d.mangas)) next.set(e.id, e);
       state.favs = favIds(d.MediaListCollection.user);
       for (const [id, e] of state.list) if (syncs.has(id)) next.set(id, e);
       applyPending(next);
       state.list = next;
       state.alLoaded = true;
-      meRaw = raw;
-      if (!lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection })) { lsDel(K_FLISTS); lsSet(K_ME, { tok: tokTag(), at: Date.now(), viewer: auth.viewer, col: d.MediaListCollection }); }
+      meRaw = raw; meMRaw = mraw;
+      if (!lsSet(K_ME, saved())) { lsDel(K_FLISTS); lsSet(K_ME, saved()); }
     } catch (err) { if (err.kind === "auth") return; state.alErr = err; }
     // The whole page depends on the list (hidden anime, recommendations): redraw it once.
     render();
@@ -1983,13 +2060,13 @@ footer a { color: var(--haze); }
     const small = src.includes("/cover/large/") ? src.replace("/cover/large/", "/cover/medium/") : "";
     return `<img src="${esc(src)}"${small ? ` srcset="${esc(small)} 230w, ${esc(src)} 460w" sizes="${SIZES}"` : ""} alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ""} onerror="this.remove()">`;
   }
-  function stChip(s) { return `<span class="st-chip" style="--sc:var(--s-${s})">${STATUS[s]}</span>`; }
+  function stChip(s, manga) { return `<span class="st-chip" style="--sc:var(--s-${s})">${stName(s, manga)}</span>`; }
 
   function overlayHTML(it) {
     const e = entryOf(it.id);
     return [
       it.badge ? `<span class="pc-tag">${esc(it.badge)}</span>` : "",
-      e ? `<span class="pc-state">${stChip(e.status)}</span>` : `<button class="pc-add" data-act="add" data-id="${it.id}" aria-label="Ajouter ${esc(it.title)} à ma liste" title="Ajouter à ma liste">+</button>`,
+      e ? `<span class="pc-state">${stChip(e.status, isManga(e))}</span>` : `<button class="pc-add" data-act="add" data-id="${it.id}" aria-label="Ajouter ${esc(it.title)} à ma liste" title="Ajouter à ma liste">+</button>`,
     ].join("");
   }
   function posterCard(it, rank, reason) {
@@ -2076,6 +2153,7 @@ footer a { color: var(--haze); }
     const showTag = opts.readonly ? false : state.filter !== "all";
     const mine = opts.friend ? entryOf(e.id) : null;
     const stamps = opts.friend ? stampsHTML(mine && mine.score, e.score, opts.friend) : stampsHTML(e.score, 0);
+    const u = unitOf(isManga(e));
     return `<article class="pc${state.bump === e.id ? " bump" : ""}" style="${tintVars(e.color)};--sc:var(--s-${e.status})">
       <button class="pc-hit" data-act="open" data-id="${e.id}">
         <span class="pc-img">${img(e.cover, "")}${stamps}${(opts.fav !== undefined ? opts.fav : !opts.readonly && isFav(e)) ? `<span class="fav-badge" title="Préféré">${ICON_HEART_FULL}<span class="sr">Préféré</span></span>` : ""}<span class="lc-bar"><i style="width:${pct}%"></i></span></span>
@@ -2083,8 +2161,8 @@ footer a { color: var(--haze); }
       </button>
       <div class="lc-meta"><span>${esc(progressLabel(e))}</span></div>
       <div class="pc-over">
-        ${opts.behind ? `<span class="lc-new">${plural(opts.behind, "épisode à voir", "épisodes à voir")}</span>` : fresh && !opts.readonly ? `<span class="lc-new">Nouveaux épisodes</span>` : showTag ? `<span class="pc-tag" style="background:var(--sc);color:var(--night)">${STATUS[e.status]}</span>` : ""}
-        ${canInc ? `<button class="lc-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}
+        ${opts.behind ? `<span class="lc-new">${plural(opts.behind, "épisode à voir", "épisodes à voir")}</span>` : fresh && !opts.readonly ? `<span class="lc-new">Nouveaux ${u.many}</span>` : showTag ? `<span class="pc-tag" style="background:var(--sc);color:var(--night)">${stName(e.status, isManga(e))}</span>` : ""}
+        ${canInc ? `<button class="lc-inc" data-act="inc" data-id="${e.id}" aria-label="Un ${u.one} de plus pour ${esc(t.main)}">+1 ${u.short}</button>` : ""}
         ${opts.add && !entryOf(e.id) ? `<button class="pc-add" data-act="add" data-id="${e.id}" aria-label="Ajouter ${esc(t.main)} à ma liste" title="Ajouter à ma liste">+</button>` : ""}
       </div>
     </article>`;
@@ -2126,9 +2204,9 @@ footer a { color: var(--haze); }
   /* Découvrir hides what is already in the list, unless the person asks to see it. */
   function mineFilter() {
     if (prefs.showMine) return () => true;
-    const keys = new Set();
-    for (const e of state.list.values()) for (const t of [e.en, e.ro]) if (t) keys.add(keyOf(stripSeason(t)));
-    return (it) => !entryOf(it.id) && !keys.has(it.group) && !(it.alt && keys.has(keyOf(stripSeason(it.alt))));
+    const keys = { anime: new Set(), manga: new Set() };
+    for (const e of state.list.values()) for (const t of [e.en, e.ro]) if (t) keys[isManga(e) ? "manga" : "anime"].add(keyOf(stripSeason(t)));
+    return (it) => { const k = keys[it.kind === "manga" ? "manga" : "anime"]; return !entryOf(it.id) && !k.has(it.group) && !(it.alt && k.has(keyOf(stripSeason(it.alt)))); };
   }
   function heroHTML(list) {
     const picks = list.filter((i) => i.banner).slice(0, 5);
@@ -2178,11 +2256,13 @@ footer a { color: var(--haze); }
     const season = itemsOf(h.season?.media).filter(keep);
     const popular = itemsOf(h.popular?.media, { roots: true }).filter(keep).slice(0, 24);
     const films = itemsOf(h.films?.media).filter(keep).slice(0, 20);
+    const mangas = itemsOf(h.mangas?.media).filter(keep).slice(0, 20);
     return `<div id="heroSlot">${heroHTML(trendingAll.filter(keep))}</div><div class="wrap page">
       ${state.list.size ? `<div class="mine-toggle"><label for="showMine"><input type="checkbox" id="showMine"${prefs.showMine ? " checked" : ""}> Afficher aussi les animes déjà dans ma liste</label></div>` : ""}
       <div id="recoSlot">${recoRows()}</div>
       ${rowHTML("tendances", "Top 10 de la semaine", "Les animes dont tout le monde parle en ce moment.", top, true)}
       ${rowHTML("saison", `${SEASONS[cs.season]} ${cs.year}`, "Les séries de la saison, des plus suivies aux moins suivies.", season.slice(0, 24))}
+      ${rowHTML("mangas", "Mangas du moment", "Les mangas les plus lus en ce moment sur AniList.", mangas)}
       ${rowHTML("incontournables", "Les incontournables", "Les séries les plus regardées de tous les temps.", popular)}
       ${rowHTML("films", "Films à voir absolument", "Les films d'animation japonaise les mieux notés.", films)}
     </div>`;
@@ -2207,18 +2287,18 @@ footer a { color: var(--haze); }
     for (const e of all) { counts[e.status]++; eps += e.progress || 0; mins += (e.progress || 0) * (e.mins || 24); if (e.score) { sSum += e.score; sN++; } }
     return { counts, eps, mins, avg: sN ? sSum / sN : 0 };
   }
-  function filtersHTML(all, counts, current, act) {
+  function filtersHTML(all, counts, current, act, manga) {
     return `<div class="filters" role="group" aria-label="Filtrer par statut">
       <button class="filter" data-act="${act}" data-f="all" aria-pressed="${current === "all"}">Tout <span class="n">${all.length}</span></button>
-      ${ORDER.map((s) => `<button class="filter" style="--sc:var(--s-${s})" data-act="${act}" data-f="${s}" aria-pressed="${current === s}"><span class="dot" aria-hidden="true"></span>${STATUS[s]} <span class="n">${counts[s]}</span></button>`).join("")}
+      ${ORDER.map((s) => `<button class="filter" style="--sc:var(--s-${s})" data-act="${act}" data-f="${s}" aria-pressed="${current === s}"><span class="dot" aria-hidden="true"></span>${stName(s, manga)} <span class="n">${counts[s]}</span></button>`).join("")}
     </div>`;
   }
   function groupsHTML(all, filter, card, opts = {}) {
     return (filter === "all" ? ORDER : [filter]).map((s) => {
       const cw = opts.cw && s === "watching";
       const items = all.filter((e) => e.status === s).sort(SORTS[cw ? "updated" : state.sort]);
-      if (!items.length) return filter === "all" ? "" : `<p class="muted">Rien dans « ${STATUS[s]} » pour l'instant.</p>`;
-      return `<section class="group" style="--sc:var(--s-${s})"><h2><span class="dot" aria-hidden="true"></span>${cw ? "Continuer à regarder" : STATUS[s]} <span class="n num">${items.length}</span></h2><div class="${cw ? "cw-grid" : "grid"}">${items.map(cw ? cwCard : card).join("")}</div></section>`;
+      if (!items.length) return filter === "all" ? "" : `<p class="muted">Rien dans « ${stName(s, opts.manga)} » pour l'instant.</p>`;
+      return `<section class="group" style="--sc:var(--s-${s})"><h2><span class="dot" aria-hidden="true"></span>${cw ? (opts.manga ? "Continuer à lire" : "Continuer à regarder") : stName(s, opts.manga)} <span class="n num">${items.length}</span></h2><div class="${cw ? "cw-grid" : "grid"}">${items.map(cw ? cwCard : card).join("")}</div></section>`;
     }).join("");
   }
   /* A wide card for what you are watching: where you are, what's out, when the next one airs. */
@@ -2246,13 +2326,14 @@ footer a { color: var(--haze); }
     else if (nx) next = `Épisode ${nx.ep} ${fmtWhen(nx.at)}`;
     else if (total && p >= total) next = "Tu es à jour";
     const canInc = !total || p < total;
+    const u = unitOf(isManga(e));
     return `<article class="cw${state.bump === e.id ? " bump" : ""}" style="${tintVars(e.color)}">
       <span class="cw-art" aria-hidden="true">${img(e.banner || e.cover, "")}</span>
       <button class="cw-hit" data-act="open" data-id="${e.id}">
         <span class="cw-cover">${img(e.cover, "")}</span>
         <span class="cw-txt"><span class="cw-t">${esc(t.main)}</span><span class="cw-s">${esc(progressLabel(e))}${e.score ? ` · ${fmtScore(e.score)}/10` : ""}</span>${next ? `<span class="cw-next${hot ? " hot" : ""}">${esc(next)}</span>` : ""}</span>
       </button>
-      <div class="cw-foot"><div class="progbar" style="--sc:var(--s-watching)"><i style="width:${pct}%"></i></div><span class="cw-w" data-wid="${e.id}">${cwWatchHTML(e)}</span>${canInc ? `<button class="cw-inc" data-act="inc" data-id="${e.id}" aria-label="Un épisode de plus pour ${esc(t.main)}">+1 ép.</button>` : ""}</div>
+      <div class="cw-foot"><div class="progbar" style="--sc:var(--s-watching)"><i style="width:${pct}%"></i></div><span class="cw-w" data-wid="${e.id}">${cwWatchHTML(e)}</span>${canInc ? `<button class="cw-inc" data-act="inc" data-id="${e.id}" aria-label="Un ${u.one} de plus pour ${esc(t.main)}">+1 ${u.short}</button>` : ""}</div>
     </article>`;
   }
   // AniList doesn't let other sites send a picture: the photo and the banner are changed on its settings page.
@@ -2270,7 +2351,7 @@ footer a { color: var(--haze); }
     if (u && u.bannerImage) return { html: `<img src="${esc(u.bannerImage)}" alt="" decoding="async">`, color: lead ? lead.color : "" };
     return { html: lead && (lead.banner || lead.cover) ? img(lead.banner || lead.cover, "", "soft") : "", color: lead ? lead.color : "" };
   }
-  function autoBanner(v) { return profileBanner(v, state.list.values(), false); }
+  function autoBanner(v) { return profileBanner(v, animeEntries(), false); }
   function currentBanner() {
     if (state.mode === "anilist") return [...state.list.values()].find((e) => e.isBanner) || null;
     return prefs.banner ? state.list.get(prefs.banner) || null : null;
@@ -2323,7 +2404,7 @@ footer a { color: var(--haze); }
   }
   function bannerHTML(e) { return e.banner ? `<img src="${esc(e.banner)}" alt="" loading="lazy" decoding="async">` : img(e.cover, "", "soft"); }
   function bannerPickHTML(v) {
-    const list = [...state.list.values()].filter((e) => e.banner || e.cover)
+    const list = animeEntries().filter((e) => e.banner || e.cover)
       .sort((a, b) => (!!b.banner - !!a.banner) || titles(a.en, a.ro).main.localeCompare(titles(b.en, b.ro).main, "fr"));
     const auto = autoBanner(v), cb = currentBanner(), cur = cb ? cb.id : "";
     return `<section class="bn-pick" aria-labelledby="h-bn">
@@ -2352,8 +2433,8 @@ footer a { color: var(--haze); }
   function skelSection(title) {
     return `<section aria-hidden="true">${title ? `<div class="row-head"><div><h2>${esc(title)}</h2></div></div>` : `<span class="sk" style="width:240px;height:30px;margin-bottom:18px"></span>`}${skelCards(8)}</section>`;
   }
-  function distHTML(counts) {
-    return `<div class="dist" role="img" aria-label="${ORDER.map((s) => `${STATUS[s]} : ${counts[s]}`).join(", ")}">${ORDER.filter((s) => counts[s]).map((s) => `<i style="flex:${counts[s]};background:var(--s-${s})"></i>`).join("")}</div>`;
+  function distHTML(counts, manga) {
+    return `<div class="dist" role="img" aria-label="${ORDER.map((s) => `${stName(s, manga)} : ${counts[s]}`).join(", ")}">${ORDER.filter((s) => counts[s]).map((s) => `<i style="flex:${counts[s]};background:var(--s-${s})"></i>`).join("")}</div>`;
   }
   function listNotices() {
     if (state.mode === "local") {
@@ -2371,24 +2452,42 @@ footer a { color: var(--haze); }
         ? `<div class="notice"><span>${esc(errText(state.alErr))}</span><button class="btn btn-sm" data-act="reload-list">Réessayer</button></div>`
         : `<p class="sr">Chargement de ta liste AniList…</p><span class="sk" style="height:18px;width:min(520px,90%)"></span>`}</header>${state.alErr ? "" : `<div class="page">${skelCards(12, true)}</div>`}</div>`;
     }
-    const all = [...state.list.values()];
-    if (!all.length) return `<div class="wrap"><section class="empty">
+    const everything = [...state.list.values()];
+    if (!everything.length) return `<div class="wrap"><section class="empty">
       <h2>Ta liste est vide pour l'instant</h2>
-      <p>Cherche un anime en haut de la page ou pioche dans les tendances. Sur sa fiche, choisis où tu en es : en cours, terminé, à voir… Tu pourras ensuite le noter et suivre tes épisodes.</p>
+      <p>Cherche un anime ou un manga en haut de la page, ou pioche dans les tendances. Sur sa fiche, choisis où tu en es : en cours, terminé, à voir… Tu pourras ensuite le noter et suivre ta progression.</p>
       <a class="btn btn-main" href="#decouvrir">Découvrir des animes</a>
       ${listNotices()}
     </section></div>`;
+    const manga = prefs.listKind === "manga";
+    const all = everything.filter((e) => isManga(e) === manga);
+    const nM = everything.filter(isManga).length;
+    const kindSeg = `<div class="seg" role="group" aria-label="Animes ou mangas">
+        <button data-act="listkind" data-k="anime" aria-pressed="${!manga}">Animes <span class="n num">${everything.length - nM}</span></button>
+        <button data-act="listkind" data-k="manga" aria-pressed="${manga}">Mangas <span class="n num">${nM}</span></button>
+      </div>`;
+    if (!all.length) return `<div class="wrap">
+      <header class="lh">${meHeadHTML("Ma liste")}${kindSeg}</header>
+      <section class="empty">
+        <h2>${manga ? "Aucun manga dans ta liste pour l'instant" : "Aucun anime dans ta liste pour l'instant"}</h2>
+        <p>${manga ? "Cherche un manga en haut de la page, ou pioche dans les mangas du moment sur Découvrir. Tu suivras tes chapitres comme tes épisodes, et tout reste synchronisé avec AniList." : "Cherche un anime en haut de la page ou pioche dans les tendances."}</p>
+        <a class="btn btn-main" href="#decouvrir">${manga ? "Voir les mangas du moment" : "Découvrir des animes"}</a>
+      </section></div>`;
     const { counts, eps, mins, avg } = stats(all);
-    const sum = `Tu suis <b>${plural(all.length, "anime", "animes")}</b>. Tu as vu <b>${plural(eps, "épisode", "épisodes")}</b>, soit <b>${fmtTime(mins)}</b> devant l'écran${avg ? `, avec une note moyenne de <b>${nf1.format(avg)}/10</b>` : ""}.`;
+    const note = avg ? `, avec une note moyenne de <b>${nf1.format(avg)}/10</b>` : "";
+    const sum = manga
+      ? `Tu suis <b>${plural(all.length, "manga", "mangas")}</b>. Tu as lu <b>${plural(eps, "chapitre", "chapitres")}</b>${note}.`
+      : `Tu suis <b>${plural(all.length, "anime", "animes")}</b>. Tu as vu <b>${plural(eps, "épisode", "épisodes")}</b>, soit <b>${fmtTime(mins)}</b> devant l'écran${note}.`;
     return `<div class="wrap">
       <header class="lh">
         ${meHeadHTML("Ma liste")}
+        ${kindSeg}
         <p class="lh-sum">${sum}</p>
-        ${eps ? `<a class="bl-cta" href="#bilan">${ICON_SPARK}Voir ton bilan anime</a>` : ""}
-        ${distHTML(counts)}
+        ${eps && !manga ? `<a class="bl-cta" href="#bilan">${ICON_SPARK}Voir ton bilan anime</a>` : ""}
+        ${distHTML(counts, manga)}
         ${listNotices()}
         <div class="bar-tools">
-          ${filtersHTML(all, counts, state.filter, "filter")}
+          ${filtersHTML(all, counts, state.filter, "filter", manga)}
           <div class="tools">
             <label for="sortSel">Trier par <select id="sortSel">
               ${[["title", "Titre"], ["updated", "Dernière modification"], ["score", "Ma note"], ["year", "Année"]].map(([v, l]) => `<option value="${v}"${state.sort === v ? " selected" : ""}>${l}</option>`).join("")}
@@ -2400,7 +2499,7 @@ footer a { color: var(--haze); }
         </div>
         ${state.mode === "anilist" ? `<p class="muted small" id="syncNote" aria-live="polite"></p>` : ""}
       </header>
-      <div class="page">${state.filter === "all" ? favSectionHTML(favEntries(all, curFavs()), "Mes préférés", "Tes coups de cœur. Ajoute ou retire un anime avec le cœur de sa fiche.", "favs") : ""}${groupsHTML(all, state.filter, (e) => listCard(e), { cw: true })}</div>
+      <div class="page">${state.filter === "all" && !manga ? favSectionHTML(favEntries(all, curFavs()), "Mes préférés", "Tes coups de cœur. Ajoute ou retire un anime avec le cœur de sa fiche.", "favs") : ""}${groupsHTML(all, state.filter, (e) => listCard(e), { cw: true, manga })}</div>
     </div>`;
   }
 
@@ -2475,7 +2574,7 @@ footer a { color: var(--haze); }
   function dayIndex(ts) { const d = new Date(ts * 1000); d.setHours(0, 0, 0, 0); return Math.round((d.getTime() / 1000 - startOfToday()) / DAY); }
   function myAiringIds() {
     const ids = [];
-    for (const e of state.list.values()) {
+    for (const e of animeEntries()) {
       if (!["watching", "plan", "paused"].includes(e.status)) continue;
       for (const p of included(e)) if (p.status !== "FINISHED" && p.status !== "CANCELLED") ids.push(p.id);
     }
@@ -2519,7 +2618,7 @@ footer a { color: var(--haze); }
     if (changed) { for (const e of state.list.values()) e.total = totalOf(e); saveList(); }
   }
   function behindOf(e) {
-    if (e.status !== "watching") return 0;
+    if (e.status !== "watching" || isManga(e)) return 0;
     const aired = included(e).reduce((s, p) => s + (p.status === "FINISHED" ? (p.eps || p.aired || 0) : (p.aired || 0)), 0);
     return Math.max(0, aired - (e.progress || 0));
   }
@@ -2573,7 +2672,7 @@ footer a { color: var(--haze); }
       <div class="page">
         ${behind.length ? `<section class="group" aria-labelledby="h-retard"><div class="row-head"><div><h2 id="h-retard">À rattraper</h2><p>Les épisodes déjà sortis que tu n'as pas encore vus.</p></div></div>
           <div class="strip cw-strip" id="row-retard">${behind.map(([e]) => cwCard(e)).join("")}</div></section>`
-          : !listWait ? `<p class="muted">${[...state.list.values()].some((e) => e.status === "watching") ? "Tu es à jour sur tous tes animes en cours : rien à rattraper." : "Passe un anime en « En cours » pour voir ici les épisodes qu'il te reste à rattraper."}</p>` : ""}
+          : !listWait ? `<p class="muted">${animeEntries().some((e) => e.status === "watching") ? "Tu es à jour sur tous tes animes en cours : rien à rattraper." : "Passe un anime en « En cours » pour voir ici les épisodes qu'il te reste à rattraper."}</p>` : ""}
         <section aria-label="Programme des 7 prochains jours">${body}</section>
       </div>
     </div>`;
@@ -2720,7 +2819,7 @@ footer a { color: var(--haze); }
   /* ================= recommendations ================= */
   let recoLoading = false;
   function recoSources() {
-    const all = [...state.list.values()];
+    const all = animeEntries();
     const scored = all.filter((e) => e.score >= 7).sort((a, b) => b.score - a.score || (b.updatedAt || 0) - (a.updatedAt || 0));
     const rest = all.filter((e) => !(e.score >= 7) && (e.status === "completed" || e.status === "watching")).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     // With nothing rated or watched yet, start from what the person plans to watch.
@@ -3231,7 +3330,7 @@ footer a { color: var(--haze); }
   async function ensureWatchLinks() {
     if (linksBusy) { linksAgain = true; return; }
     const ids = [];
-    for (const e of state.list.values()) if (e.status === "watching") for (const p of included(e)) ids.push(p.id);
+    for (const e of animeEntries()) if (e.status === "watching") for (const p of included(e)) ids.push(p.id);
     if (!ids.some((id) => !linksFresh(id)) || Date.now() - linksFailAt < 60000) return;
     linksBusy = true;
     try { if (await fetchLinks(ids, true)) paintWatchSlots(); } catch (_) { linksFailAt = Date.now(); }
@@ -3352,11 +3451,11 @@ footer a { color: var(--haze); }
   const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
   function bilanYears() {
     const ys = new Set();
-    for (const e of state.list.values()) if (e.status === "completed" && e.finishedAt) ys.add(new Date(e.finishedAt).getFullYear());
+    for (const e of animeEntries()) if (e.status === "completed" && e.finishedAt) ys.add(new Date(e.finishedAt).getFullYear());
     return [...ys].sort((a, b) => b - a).slice(0, 4);
   }
   function bilanData(p) {
-    const all = [...state.list.values()];
+    const all = animeEntries();
     const yr = p && p !== "all" ? Number(p) : 0;
     const inYear = (e, y) => e.status === "completed" && e.finishedAt && new Date(e.finishedAt).getFullYear() === y;
     const set = all.filter((e) => (e.progress || 0) > 0 && (!yr || inYear(e, yr)));
@@ -3893,7 +3992,7 @@ footer a { color: var(--haze); }
     const my = ++searchToken;
     if (!query) { resState = { status: "idle", items: [], query }; paintResults(); return; }
     if (query.length === 1 || (query.length === 2 && POP.l.length >= 100)) { resState = { status: "done", items: [], query }; resIdx = 0; paintResults(); return; }
-    if (searchCache.has(query.toLowerCase())) { resState = { status: "done", items: searchCache.get(query.toLowerCase()), query }; resIdx = 0; paintResults(); return; }
+    if (searchCache.has(query.toLowerCase())) { const c = searchCache.get(query.toLowerCase()); resState = { status: "done", items: c.a, mangas: c.m, query }; resIdx = 0; paintResults(); return; }
     resState = { status: "loading", items: [], query }; resIdx = 0; paintResults();
     try {
       const d = await gql(Q_SEARCH, { q: query }, { stale: () => my !== searchToken });
@@ -3901,8 +4000,9 @@ footer a { color: var(--haze); }
       let items = itemsOf(d.Page?.media);
       if (!items.length) items = (d.Page?.media || []).map(item);
       items = items.slice(0, 8);
-      searchCache.set(query.toLowerCase(), items.map((i) => i.raw));
-      resState = { status: "done", items: items.map((i) => i.raw), query }; resIdx = items.length ? 0 : -1;
+      const mangas = (d.mangas?.media || []).map(item).slice(0, 6).map((i) => i.raw);
+      searchCache.set(query.toLowerCase(), { a: items.map((i) => i.raw), m: mangas });
+      resState = { status: "done", items: items.map((i) => i.raw), mangas, query }; resIdx = items.length || mangas.length ? 0 : -1;
     } catch (err) { if (my !== searchToken) return; resState = { status: "error", items: [], query, err }; }
     paintResults();
   }
@@ -4009,6 +4109,10 @@ footer a { color: var(--haze); }
       take(netOne, 8);
       head = `<li class="res-msg">Aucun titre ne commence par « ${esc(resState.query)} ». Ceux qui le contiennent :</li>`;
     }
+    // Mangas come after the animes: the ones whose title starts with what you typed, or what AniList found if nothing else did.
+    const mgAll = resState.status === "done" ? (resState.mangas || []).map(item) : [];
+    const mgStart = mgAll.filter(startsWith);
+    const mangas = (mgStart.length ? mainFirst(mgStart) : items.length ? [] : mgAll).slice(0, 4);
     let tail = "";
     if (resState.status === "loading") {
       const w = apiWait();
@@ -4018,22 +4122,25 @@ footer a { color: var(--haze); }
       tail = `<li class="res-msg res-err"><span>${esc(errText(resState.err))}</span><button class="btn btn-sm" data-act="search-retry">Réessayer</button></li>`;
     } else if (!items.length && fold(resState.query).trim().length <= 2 && (popBusy || !POP.l.length)) {
       tail = `<li class="res-msg" aria-live="polite">Chargement des suggestions…</li>`;
-    } else if (!items.length) {
-      tail = `<li class="res-msg">Aucun anime trouvé pour « ${esc(resState.query)} ». Essaie le titre anglais ou japonais.</li>`;
+    } else if (!items.length && !mangas.length) {
+      tail = `<li class="res-msg">Aucun anime ni manga trouvé pour « ${esc(resState.query)} ». Essaie le titre anglais ou japonais.</li>`;
     }
-    resItems = items;
-    if (!items.length) { resEl.innerHTML = tail; resIdx = -1; q.removeAttribute("aria-activedescendant"); return; }
+    resItems = [...items, ...mangas];
+    if (!resItems.length) { resEl.innerHTML = tail; resIdx = -1; q.removeAttribute("aria-activedescendant"); return; }
     tail = head ? "" : tail;
-    resIdx = Math.min(Math.max(resIdx, 0), items.length - 1);
-    resEl.innerHTML = items.map((it, i) => {
+    resIdx = Math.min(Math.max(resIdx, 0), resItems.length - 1);
+    const row = (it, i) => {
       const e = entryOf(it.id);
-      const sub = it.pop ? [it.alt, it.sub].filter(Boolean).join(" · ") : [it.alt && (it.seq ? stripSeason(it.alt) : it.alt), subline(it), it.eps ? plural(it.eps, "ép.", "ép.") : null].filter(Boolean).join(" · ");
+      const u = unitOf(it.kind === "manga");
+      const sub = it.pop ? [it.alt, it.sub].filter(Boolean).join(" · ") : [it.alt && (it.seq ? stripSeason(it.alt) : it.alt), subline(it), it.eps ? plural(it.eps, u.short, u.short) : null].filter(Boolean).join(" · ");
       return `<li class="res" role="option" id="res-${i}" data-act="open" data-id="${it.id}" aria-selected="${i === resIdx}">
         ${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : `<span class="ph"></span>`}
         <div style="min-width:0"><div class="res-t">${esc(it.title)}</div><div class="res-s">${esc(sub)}</div></div>
-        ${e ? stChip(e.status) : `<button class="btn btn-sm" data-act="add" data-id="${it.id}" tabindex="-1">Ajouter</button>`}
+        ${e ? stChip(e.status, isManga(e)) : `<button class="btn btn-sm" data-act="add" data-id="${it.id}" tabindex="-1">Ajouter</button>`}
       </li>`;
-    }).join("") + tail;
+    };
+    resEl.innerHTML = items.map(row).join("")
+      + (mangas.length ? `<li class="res-sec" role="presentation">Mangas</li>${mangas.map((it, i) => row(it, items.length + i)).join("")}` : "") + tail;
     if (head) resEl.insertAdjacentHTML("afterbegin", head);
     q.setAttribute("aria-activedescendant", "res-" + resIdx);
   }
@@ -4092,11 +4199,11 @@ footer a { color: var(--haze); }
     try {
       let rootId = it && !it.seq ? id : ROOT.get(id);
       if (!rootId) rootId = await resolveRoot(it ? it.raw : await getLite(id));
-      if (state.list.has(String(rootId))) { toast("Cet anime est déjà dans ta liste."); refresh(); return; }
+      if (state.list.has(String(rootId))) { toast("C'est déjà dans ta liste."); refresh(); return; }
       const fr = await loadFranchise(rootId);
       const e = entryFrom(fr, "plan");
       addEntry(e);
-      toast(`${titles(e.en, e.ro).main} est dans ta liste, dans « À voir ».`, "Ouvrir la fiche", () => openAnime(rootId));
+      toast(`${titles(e.en, e.ro).main} est dans ta liste, dans « ${stName("plan", isManga(e))} ».`, "Ouvrir la fiche", () => openAnime(rootId));
     } catch (err) { toast(errText(err)); if (btn && document.contains(btn)) { btn.disabled = false; btn.classList.remove("busy"); } }
   }
 
@@ -4177,7 +4284,15 @@ footer a { color: var(--haze); }
     const t = titles(r.title?.english, r.title?.romaji);
     const syn = cleanDesc(r.description);
     const totalEps = fr.parts.reduce((s, p) => s + (p.episodes || 0), 0);
-    const facts = [
+    const manga = !!fr.manga;
+    const facts = manga ? [
+      formatName(r.format, r.countryOfOrigin),
+      r.startDate?.year || null,
+      totalEps ? plural(totalEps, "chapitre", "chapitres") : r.status === "RELEASING" ? "En cours de parution" : null,
+      r.volumes ? plural(r.volumes, "volume", "volumes") : null,
+      authorsOf(r).join(" et ") || null,
+      r.averageScore ? `${nf1.format(r.averageScore / 10)}/10 sur AniList` : null,
+    ].filter(Boolean) : [
       FORMAT[r.format],
       r.season && r.seasonYear ? `${SEASONS[r.season]} ${r.seasonYear}` : (r.seasonYear || r.startDate?.year || null),
       fr.parts.length > 1 ? plural(fr.parts.length, "saison", "saisons") : null,
@@ -4208,12 +4323,12 @@ footer a { color: var(--haze); }
         ${fr.films.length ? `<section class="dw-sec"><h3>Films et OVA liés</h3><div class="films">${fr.films.map((f) => posterCard(item(f))).join("")}</div></section>` : ""}
         <div class="dw-links">
           ${r.siteUrl ? `<a class="btn btn-sm" href="${esc(r.siteUrl)}" target="_blank" rel="noopener">Voir sur AniList</a>` : ""}
-          ${r.idMal ? `<a class="btn btn-sm" href="https://myanimelist.net/anime/${r.idMal}" target="_blank" rel="noopener">Voir sur MyAnimeList</a>` : ""}
+          ${r.idMal ? `<a class="btn btn-sm" href="https://myanimelist.net/${manga ? "manga" : "anime"}/${r.idMal}" target="_blank" rel="noopener">Voir sur MyAnimeList</a>` : ""}
         </div>
         <div id="dwFoot"></div>
       </div>`;
     renderTrack();
-    loadWatch(fr);
+    if (!manga) loadWatch(fr);
     if (auth.viewer && !fr.partial) loadFriendsOn(fr);
   }
   function renderTrack() {
@@ -4224,7 +4339,8 @@ footer a { color: var(--haze); }
     const a = document.activeElement;
     const keep = a && tr.contains(a) ? (a.id ? "#" + a.id : `[data-act="${a.dataset.act}"]${a.dataset.s ? `[data-s="${a.dataset.s}"]` : ""}${a.dataset.v ? `[data-v="${a.dataset.v}"]` : ""}`) : null;
     const typing = a && a.id === "comment";
-    const stBtns = ORDER.map((s) => `<button class="st" style="--sc:var(--s-${s})" data-act="status" data-s="${s}" aria-pressed="${e ? e.status === s : false}">${STATUS[s]}</button>`).join("");
+    const manga = !!state.sheet.fr.manga, u = unitOf(manga);
+    const stBtns = ORDER.map((s) => `<button class="st" style="--sc:var(--s-${s})" data-act="status" data-s="${s}" aria-pressed="${e ? e.status === s : false}">${stName(s, manga)}</button>`).join("");
     if (!e) {
       tr.innerHTML = state.mode === "anilist" && !state.alLoaded
         ? `<div class="panel"><p class="muted">Chargement de ta liste AniList…</p></div>`
@@ -4237,7 +4353,7 @@ footer a { color: var(--haze); }
         ? `<label for="selSeason">Saison <select id="selSeason">${inc.map((p, i) => `<option value="${i}"${i === pos.season ? " selected" : ""}>${i + 1}${partSize(p) ? ` (${partSize(p)} ép.)` : ""}</option>`).join("")}</select></label>
            <label for="inEp">Épisode <input id="inEp" type="number" min="0" ${pos.size ? `max="${pos.size}"` : ""} inputmode="numeric" value="${pos.ep}"></label>
            <span class="of">sur ${pos.size || "?"}</span>`
-        : `<label for="inEp">Épisode <input id="inEp" type="number" min="0" ${total ? `max="${total}"` : ""} inputmode="numeric" value="${e.progress || 0}"></label><span class="of">sur ${total || "?"}</span>`;
+        : `<label for="inEp">${u.Cap} <input id="inEp" type="number" min="0" ${total ? `max="${total}"` : ""} inputmode="numeric" value="${e.progress || 0}"></label><span class="of">sur ${total || "?"}</span>`;
       tr.innerHTML = `<div class="panel" style="--sc:var(--s-${e.status})">
         <div class="field"><div class="field-l">Statut</div><div class="sts" role="group" aria-label="Statut">${stBtns}</div></div>
         <div class="field"><div class="field-l score-head"><span class="score-l">Ma note <span>${sc ? `${fmtScore(sc)}/10, ${SCORE_LABEL[Math.floor(sc)].toLowerCase()}` : "Pas encore noté"}</span></span>
@@ -4247,7 +4363,7 @@ footer a { color: var(--haze); }
             return `<button data-act="score" data-v="${v}" aria-pressed="${on}" class="${sc && v < Math.floor(sc) ? "on" : ""}" aria-label="${v} sur 10, ${SCORE_LABEL[v]}">${v}${half ? "½" : ""}</button>`;
           }).join("")}</div></div>
         <div class="field"><div class="field-l">Où j'en suis <span>${esc(progressLabel(e))}${total ? `, ${pct} %` : ""}</span></div>
-          <div class="prog">${progCtl}<div class="step"><button data-act="dec" aria-label="Un épisode de moins">−</button><button data-act="incd" aria-label="Un épisode de plus">+</button></div></div>
+          <div class="prog">${progCtl}<div class="step"><button data-act="dec" aria-label="Un ${u.one} de moins">−</button><button data-act="incd" aria-label="Un ${u.one} de plus">+</button></div></div>
           <div class="progbar"><i style="width:${pct}%"></i></div></div>
         <div class="field"><label class="field-l" for="comment">Mon avis</label><textarea id="comment" maxlength="3000" placeholder="Ce que tu en as pensé, tes persos préférés…">${esc(e.comment || "")}</textarea></div>
       </div>`;
@@ -4256,7 +4372,7 @@ footer a { color: var(--haze); }
     const fb = $("#dwFav");
     if (fb) {
       const fav = isFav(e);
-      fb.innerHTML = e ? `<button class="fav-btn" data-act="fav" aria-pressed="${fav}">${fav ? ICON_HEART_FULL : ICON_HEART_LINE}${fav ? "Dans mes préférés" : "Ajouter à mes préférés"}</button>` : "";
+      fb.innerHTML = e && !manga ? `<button class="fav-btn" data-act="fav" aria-pressed="${fav}">${fav ? ICON_HEART_FULL : ICON_HEART_LINE}${fav ? "Dans mes préférés" : "Ajouter à mes préférés"}</button>` : "";
     }
     const foot = $("#dwFoot");
     if (foot) foot.innerHTML = e ? `<div class="dw-foot"><span>${e.addedAt ? `Dans ta liste depuis le ${new Date(e.addedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}` : "Dans ta liste"}</span><button class="danger${removeArmed ? " armed" : ""}" data-act="remove">${removeArmed ? "Confirmer le retrait" : "Retirer de ma liste"}</button></div>` : "";
@@ -4317,6 +4433,7 @@ footer a { color: var(--haze); }
       case "retry": state.homeErr = null; loadHome(true); render(); break;
       case "scroll": { const s = document.getElementById("row-" + el.dataset.row); if (s) s.scrollBy({ left: Number(el.dataset.dir) * s.clientWidth * 0.85, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); break; }
       case "filter": state.filter = el.dataset.f; render(); break;
+      case "listkind": prefs.listKind = el.dataset.k === "manga" ? "manga" : "anime"; lsSet(K_PREF, prefs); state.filter = "all"; render(); break;
       case "ffilter": state.ffilter = el.dataset.f; render(); break;
       case "pref": prefs.titles = el.dataset.v; lsSet(K_PREF, prefs); render(); if (state.sheet && state.sheet.fr) renderDrawer(); break;
       case "inc": {
@@ -4356,7 +4473,7 @@ footer a { color: var(--haze); }
       case "status": {
         const s = el.dataset.s;
         if (!sid || !state.sheet.fr) break;
-        if (!state.list.has(sid)) { addEntry(entryFrom(state.sheet.fr, s)); toast(`Ajouté à ta liste dans « ${STATUS[s]} ».`); }
+        if (!state.list.has(sid)) { addEntry(entryFrom(state.sheet.fr, s)); toast(`Ajouté à ta liste dans « ${stName(s, state.sheet.fr.manga)} ».`); }
         else updateEntry(sid, { status: s });
         break;
       }
