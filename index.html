@@ -136,7 +136,9 @@ button { cursor: pointer; }
 /* ---------- hero ---------- */
 .hero { position: relative; overflow: hidden; isolation: isolate; background: color-mix(in srgb, var(--tint) 30%, var(--night)); }
 .hero-art { position: absolute; inset: 0; z-index: -2; }
-.hero-art img { width: 100%; height: 100%; object-fit: cover; object-position: 60% 30%; animation: heroin 1.2s var(--ease) both; }
+.hero-art img { width: 100%; height: 100%; object-fit: cover; object-position: 60% 30%; }
+/* The entrance plays only when the featured anime changes (class added by renderHero), never on an ordinary re-render. */
+.hero.swap .hero-art img { animation: heroin 1.2s var(--ease) both; }
 @keyframes heroin { from { opacity: 0; transform: scale(1.04); } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -1;
   background:
@@ -145,9 +147,9 @@ button { cursor: pointer; }
     linear-gradient(180deg, color-mix(in srgb, var(--night) 55%, transparent) 0%, transparent 22%); }
 .hero-in { display: grid; grid-template-columns: minmax(0, 660px) 1fr; gap: 32px; align-items: end; padding-block: 96px 44px; min-height: clamp(500px, 72vh, 700px); }
 .hero-text { display: grid; gap: 16px; align-content: end; }
-.hero-text > * { animation: heroup .7s var(--ease) both; }
-.hero-text > :nth-child(2) { animation-delay: .06s; }
-.hero-text > :nth-child(n+3) { animation-delay: .12s; }
+.hero.swap .hero-text > * { animation: heroup .7s var(--ease) both; }
+.hero.swap .hero-text > :nth-child(2) { animation-delay: .06s; }
+.hero.swap .hero-text > :nth-child(n+3) { animation-delay: .12s; }
 @keyframes heroup { from { opacity: 0; transform: translateY(12px); } }
 .hero-kicker { margin: 0; justify-self: start; display: inline-flex; align-items: center; gap: 9px; font-weight: 700; color: var(--paper); font-size: 13px; padding: 5px 13px 5px 11px; border-radius: 999px; background: color-mix(in srgb, var(--night) 62%, transparent); border: 1px solid color-mix(in srgb, var(--tint-hi) 34%, transparent); }
 .hero-kicker::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--tint-hi); transform: rotate(45deg); flex: none; box-shadow: 0 0 10px var(--tint-hi); }
@@ -165,9 +167,9 @@ button { cursor: pointer; }
 .hero-pick button img { aspect-ratio: 2 / 3; object-fit: cover; width: 100%; }
 .hero-pick button:hover { opacity: .9; transform: translateY(-3px); }
 .hero-pick button[aria-current="true"] { opacity: 1; transform: translateY(-6px); box-shadow: 0 0 0 2px var(--paper), 0 18px 34px -14px color-mix(in srgb, var(--shade) 90%, transparent); }
-/* How long until the next anime takes the stage: matches the 9 s rotation in startHero(). */
-.hero-pick button[aria-current="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--sakura); transform-origin: left; animation: heroclock 9s linear both; }
-.hero:hover .hero-pick button[aria-current="true"]::after { animation-play-state: paused; }
+/* How long until the next anime takes the stage: HERO_MS in startHero(), resumed at the right point after a re-render via --clock. */
+.hero-pick button[aria-current="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--sakura); transform-origin: left; animation: heroclock 9s linear both; animation-delay: var(--clock, 0s); transition: opacity .2s; }
+.hero:hover .hero-pick button[aria-current="true"]::after { opacity: 0; }
 @keyframes heroclock { from { transform: scaleX(0); } }
 .hero-skel { min-height: clamp(500px, 72vh, 700px); background: linear-gradient(100deg, var(--night-2) 30%, var(--night-3) 50%, var(--night-2) 70%); background-size: 300% 100%; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { to { background-position: -150% 0; } }
@@ -193,7 +195,7 @@ main { flex: 1; }
 /* ---------- poster card ---------- */
 .pc { --tint: var(--mist); position: relative; min-width: 0; }
 .pc-hit { display: grid; gap: 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; }
-.pc-img { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--tint) 55%, var(--night-2)); box-shadow: 0 0 0 1px var(--line), 0 14px 30px -20px color-mix(in srgb, var(--shade) 90%, transparent); transition: box-shadow .25s, transform .35s var(--ease); }
+.pc-img { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--tint) 55%, var(--night-2)); box-shadow: 0 0 0 1px var(--line); transition: box-shadow .25s; }
 .pc-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .45s var(--ease); }
 .pc-hit:hover .pc-img img { transform: scale(1.045); }
 .pc-hit:hover .pc-img, .pc-hit:focus-visible .pc-img { box-shadow: 0 0 0 2px var(--tint-hi, var(--haze)), 0 22px 44px -16px color-mix(in srgb, var(--tint) 85%, transparent); }
@@ -3792,6 +3794,15 @@ footer a { color: var(--haze); }
     paint(false);
   }
 
+  /* Any change made to the page outside render() (patched overlays, hero rotation, feeds…) means the last markup no
+     longer describes what is on screen, so the next render() must rebuild. */
+  let lastView = null;
+  const viewObs = new MutationObserver(() => { lastView = null; });
+  viewObs.observe(document.getElementById("view"), { childList: true, subtree: true, attributes: true, characterData: true });
+  function syncHeroClock() {
+    const b = document.querySelector('#view .hero-pick [aria-current="true"]');
+    if (b) b.style.setProperty("--clock", `-${Math.min(HERO_MS, Date.now() - (state.heroAt || Date.now()))}ms`);
+  }
   function render() {
     const n = state.list.size;
     $("#count").textContent = n ? String(n) : "";
@@ -3809,7 +3820,15 @@ footer a { color: var(--haze); }
       else if (a.dataset && a.dataset.act) focusSel = `[data-act="${a.dataset.act}"]${a.dataset.id ? `[data-id="${a.dataset.id}"]` : ""}${a.dataset.f ? `[data-f="${a.dataset.f}"]` : ""}${a.dataset.i ? `[data-i="${a.dataset.i}"]` : ""}${a.dataset.uid ? `[data-uid="${a.dataset.uid}"]` : ""}`;
     }
     const views = { liste: listHTML, decouvrir: discoverHTML, semaine: weekHTML, amis: friendsHTML, ami: friendHTML, bilan: bilanHTML };
-    $("#view").innerHTML = views[state.view]();
+    // Rebuilding the page recreates every poster (decode, layout, paint): skip it when the markup would be identical
+    // and nothing else has touched the page since the last build.
+    const html = views[state.view]();
+    if (html !== lastView) {
+      $("#view").innerHTML = html;
+      syncHeroClock();
+      viewObs.takeRecords();
+      lastView = html;
+    }
     for (const [id, x] of Object.entries(scrolls)) { const s = document.getElementById(id); if (s) s.scrollLeft = x; }
     if (focusSel) { const el = $("#view " + focusSel); if (el) { el.focus({ preventScroll: true }); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch (_) {} } }
     if (state.view === "decouvrir" && !state.home && !state.homeErr && !homeLoading) { homeLoading = true; loadHome().finally(() => { homeLoading = false; }); }
@@ -3830,20 +3849,27 @@ footer a { color: var(--haze); }
 
   /* ================= hero rotation & soft refresh ================= */
   let heroTimer = null;
+  /* Each anime stays HERO_MS on stage. The clock keeps running while the pointer rests on the hero (its bar is hidden then),
+     and the switch waits until the pointer leaves, so the bar always tells the truth even after a full re-render. */
+  const HERO_MS = 9000;
   function startHero() {
     clearInterval(heroTimer);
+    state.heroAt = Date.now();
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     heroTimer = setInterval(() => {
+      if (Date.now() - state.heroAt < HERO_MS) return;
       if (state.view !== "decouvrir" || !state.home || document.hidden || state.sheet || $(".hero:hover")) return;
       const max = itemsOf(state.home.trending?.media).filter(mineFilter()).filter((i) => i.banner).slice(0, 5).length;
-      if (max > 1) { state.heroIdx = (state.heroIdx + 1) % max; renderHero(); }
-    }, 9000);
+      if (max > 1) { state.heroIdx = (state.heroIdx + 1) % max; state.heroAt = Date.now(); renderHero(true); }
+    }, 500);
   }
-  function renderHero() {
+  function renderHero(swap) {
     const slot = $("#heroSlot");
     if (!slot || !state.home) return;
     const hadFocus = slot.contains(document.activeElement) ? document.activeElement.dataset.i : null;
     slot.innerHTML = heroHTML(itemsOf(state.home.trending?.media).filter(mineFilter()));
+    if (swap) slot.firstElementChild?.classList.add("swap");
+    syncHeroClock();
     if (hadFocus != null) slot.querySelector(`[data-i="${hadFocus}"]`)?.focus({ preventScroll: true });
   }
   /* After a list change on the discover page, patch only the card overlays so posters don't reload. */
@@ -4287,7 +4313,7 @@ footer a { color: var(--haze); }
       case "reopen": openAnime(el.dataset.id); break;
       case "add": ev.stopPropagation(); quickAdd(el.dataset.id, el); break;
       case "close": closeDrawer(); break;
-      case "hero": state.heroIdx = Number(el.dataset.i); renderHero(); startHero(); break;
+      case "hero": state.heroIdx = Number(el.dataset.i); startHero(); renderHero(true); break;
       case "retry": state.homeErr = null; loadHome(true); render(); break;
       case "scroll": { const s = document.getElementById("row-" + el.dataset.row); if (s) s.scrollBy({ left: Number(el.dataset.dir) * s.clientWidth * 0.85, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); break; }
       case "filter": state.filter = el.dataset.f; render(); break;
