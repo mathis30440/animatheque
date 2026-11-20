@@ -961,7 +961,9 @@ footer a { color: var(--haze); }
   const Q_FEED2 = `query($page:Int,$me:Int){Page(page:$page,perPage:25){pageInfo{hasNextPage} activities(isFollowing:true,userId_not:$me,type:ANIME_LIST,sort:ID_DESC){${ACT}}}}`;
   const Q_FEED_USER = `query($userId:Int){Page(perPage:8){activities(userId:$userId,type:ANIME_LIST,sort:ID_DESC){${ACT}}}}`;
   const FAV_CARD = `${RECO_CARD} relations{edges{relationType(version:2) node{id type format startDate{year month}}}}`;
-  const Q_FRIEND_FAVS = `query{Page(perPage:50){mediaList(isFollowing:true,status:COMPLETED,sort:SCORE_DESC){score(format:POINT_100) user{id name} media{${FAV_CARD}}}}}`;
+  /* AniList answers a server error to mediaList(isFollowing:true) without a mediaId, so ask by your friends' ids instead.
+     SCORE_DESC sorts on the 100-point score whatever format each friend rates in. */
+  const Q_FRIEND_FAVS = `query($ids:[Int],$page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage} mediaList(userId_in:$ids,type:ANIME,status:COMPLETED,sort:SCORE_DESC){score(format:POINT_100) user{id name} media{${FAV_CARD}}}}}`;
   const recoQuery = (ids) => `query{${ids.map((id, i) => `r${i}:Media(id:${Number(id)}){id recommendations(perPage:10,sort:RATING_DESC){nodes{rating mediaRecommendation{${FAV_CARD}}}}}`).join(" ")}}`;
   const N_USER = "id name avatar{medium large} isFollowing";
   const N_MEDIA = "id type title{romaji english} coverImage{large color} format";
@@ -2799,10 +2801,12 @@ footer a { color: var(--haze); }
   const ownsFranchise = (key, ids) => !!entryOf(key) || state.list.has(String(key)) || ids.some((id) => !!entryOf(id));
   async function loadRecos() {
     if (recoLoading || (state.mode === "anilist" && !state.alLoaded)) return;
-    const src = recoSources();
-    const sig = src.map((e) => e.id).join(",") + "|" + (auth.viewer ? auth.viewer.id : "");
-    if (state.recos && state.recos.sig === sig) return;
     recoLoading = true;
+    if (auth.viewer && !state.friends && !state.friendsErr) await loadFriends();
+    const src = recoSources();
+    const fids = auth.viewer ? (state.friends || []).map((f) => f.id).filter((id) => id !== auth.viewer.id) : [];
+    const sig = src.map((e) => e.id).join(",") + "|" + (auth.viewer ? auth.viewer.id : "") + "|" + fids.join(",");
+    if (state.recos && state.recos.sig === sig) { recoLoading = false; return; }
     state.recoErr = null;
     const recos = { sig, items: [], friends: [] };
     let lastErr = null;
@@ -2838,10 +2842,16 @@ footer a { color: var(--haze); }
       } catch (err) { lastErr = err; if (err.kind !== "api") break; }
     }
     state.recoErr = lastErr;
-    if (auth.viewer) {
+    if (fids.length) {
       try {
-        const d = await gql(Q_FRIEND_FAVS, {}, { bg: true });
-        const rows = (d.Page.mediaList || []).filter((r) => r && r.media && r.user && r.user.id !== auth.viewer.id && (r.score || 0) >= 80 && !isSpinoff(r.media));
+        const all = [];
+        for (let page = 1; page <= 2; page++) {
+          const d = await gql(Q_FRIEND_FAVS, { ids: fids, page }, { bg: true });
+          const got = (d && d.Page && d.Page.mediaList) || [];
+          all.push(...got);
+          if (!d.Page.pageInfo?.hasNextPage || !got.length || (got[got.length - 1].score || 0) < 80) break;
+        }
+        const rows = all.filter((r) => r && r.media && r.user && r.user.id !== auth.viewer.id && (r.score || 0) >= 80 && !isSpinoff(r.media));
         const prev = prequelMap(rows.map((r) => r.media));
         const fam = new Map();
         for (const r of rows) {
